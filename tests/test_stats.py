@@ -2,6 +2,7 @@ import pytest
 import pandas as pd
 # Use this clean import now that 'pip install -e .' worked!
 from ertimes.io import download_emergency_data 
+from ertimes.stats import _bed_size_to_numeric, find_capacity_volume_mismatch
 
 def test_download_california_data():
     """
