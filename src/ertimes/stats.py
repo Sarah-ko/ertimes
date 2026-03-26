@@ -5,20 +5,6 @@ from ertimes.io import download_emergency_data
 
 
 def county_capacity_summary(state: str) -> pd.DataFrame:
-    """
-    Return a county-level summary of emergency department capacity data.
-
-    Parameters
-    ----------
-    state : str
-        Name of the state to download data for.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with one row per county containing total visits,
-        total ED stations, total licensed beds, and visits per station.
-    """
     df = download_emergency_data(state).copy()
 
     required_cols = [
@@ -54,19 +40,6 @@ def county_capacity_summary(state: str) -> pd.DataFrame:
     return summary
 
 def rank_counties_by_burden(summary: pd.DataFrame) -> pd.DataFrame:
-    """
-    Rank counties by emergency department burden using visits per station.
-
-    Parameters
-    ----------
-    summary : pd.DataFrame
-        Output of county_capacity_summary.
-
-    Returns
-    -------
-    pd.DataFrame
-        County summary sorted from highest burden to lowest.
-    """
     if "visits_per_station" not in summary.columns:
         raise ValueError("summary must include 'visits_per_station' column")
 
@@ -80,15 +53,6 @@ def rank_counties_by_burden(summary: pd.DataFrame) -> pd.DataFrame:
     return ranked
 
 def _bed_size_to_numeric(value: object) -> float:
-    """
-    Convert a LICENSED_BED_SIZE category into an approximate numeric value.
-
-    Examples
-    --------
-    '1-49' -> 25.0
-    '50-99' -> 74.5
-    '500+' -> 500.0
-    """
     if pd.isna(value):
         return np.nan
 
@@ -122,37 +86,6 @@ def find_capacity_volume_mismatch(
     low_capacity_quantile: float = 0.25,
     min_visits: int | None = None,
 ) -> pd.DataFrame:
-    """
-    Find hospitals with relatively high visit volume but relatively low capacity.
-
-    Capacity is based on:
-      - EDStations
-      - LICENSED_BED_SIZE (converted from category to approximate numeric size)
-
-    A hospital is flagged when:
-      - its visit percentile is >= high_visit_quantile
-      - its capacity percentile is <= low_capacity_quantile
-
-    Returns a DataFrame sorted by mismatch_score descending.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input hospital data.
-    visit_col, stations_col, bed_col, facility_col, county_col, year_col : str
-        Column names in df.
-    high_visit_quantile : float
-        Percentile threshold for "high visits".
-    low_capacity_quantile : float
-        Percentile threshold for "low capacity".
-    min_visits : int | None
-        Optional minimum visits threshold before a hospital is considered.
-
-    Returns
-    -------
-    pd.DataFrame
-        Subset of hospitals flagged for capacity-volume mismatch, with helper columns.
-    """
     required_cols = [visit_col, stations_col, bed_col, facility_col]
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
