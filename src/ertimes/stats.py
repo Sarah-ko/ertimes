@@ -19,24 +19,65 @@ def county_capacity_summary(state: str) -> pd.DataFrame:
         DataFrame with one row per county containing total visits,
         total ED stations, total licensed beds, and visits per station.
     """
-    df = download_emergency_data(state)
+    df = download_emergency_data(state).copy()
+
+    required_cols = [
+        "CountyName",
+        "Tot_ED_NmbVsts",
+        "EDStations",
+        "LICENSED_BED_SIZE",
+    ]
+    missing = [col for col in required_cols if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+    df["Tot_ED_NmbVsts"] = pd.to_numeric(df["Tot_ED_NmbVsts"], errors="coerce")
+    df["EDStations"] = pd.to_numeric(df["EDStations"], errors="coerce")
+    df["bed_size_numeric"] = df["LICENSED_BED_SIZE"].apply(_bed_size_to_numeric)
 
     summary = (
-        df.groupby("CountyName")
+        df.groupby("CountyName", dropna=False)
         .agg(
             total_visits=("Tot_ED_NmbVsts", "sum"),
             total_stations=("EDStations", "sum"),
-            total_beds=("LICENSED_BED_SIZE", "sum"),
+            total_beds=("bed_size_numeric", "sum"),
         )
         .reset_index()
     )
 
-    summary["visits_per_station"] = (
-        summary["total_visits"] / summary["total_stations"]
+    summary["visits_per_station"] = np.where(
+        summary["total_stations"] > 0,
+        summary["total_visits"] / summary["total_stations"],
+        np.nan,
     )
 
     return summary
 
+def rank_counties_by_burden(summary: pd.DataFrame) -> pd.DataFrame:
+    """
+    Rank counties by emergency department burden using visits per station.
+
+    Parameters
+    ----------
+    summary : pd.DataFrame
+        Output of county_capacity_summary.
+
+    Returns
+    -------
+    pd.DataFrame
+        County summary sorted from highest burden to lowest.
+    """
+    if "visits_per_station" not in summary.columns:
+        raise ValueError("summary must include 'visits_per_station' column")
+
+    ranked = summary.copy()
+    ranked = ranked.sort_values(
+        by="visits_per_station",
+        ascending=False,
+        na_position="last",
+    ).reset_index(drop=True)
+
+    return ranked
 
 def _bed_size_to_numeric(value: object) -> float:
     """
