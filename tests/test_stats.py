@@ -1,16 +1,8 @@
-from ertimes.stats import county_capacity_summary
-import pytest
+import numpy as np
 import pandas as pd
+import pytest
 
-def test_county_capacity_summary_returns_dataframe():
-    summary = county_capacity_summary("california")
-
-    assert not summary.empty
-    assert "CountyName" in summary.columns
-    assert "total_visits" in summary.columns
-    assert "total_stations" in summary.columns
-    assert "total_beds" in summary.columns
-    assert "visits_per_station" in summary.columns
+from ertimes import stats
 
 # Use this clean import now that 'pip install -e .' worked!
 from ertimes.io import download_emergency_data 
@@ -42,10 +34,53 @@ def test_invalid_state_raises_error():
         download_emergency_data("not_a_real_state")
 
 def test_bed_size_to_numeric():
-    assert _bed_size_to_numeric("1-49") == 25.0
-    assert _bed_size_to_numeric("50-99") == 74.5
-    assert _bed_size_to_numeric("500+") == 500.0
-    assert pd.isna(_bed_size_to_numeric(None))
+    assert stats._bed_size_to_numeric("1-49") == 25.0
+    assert stats._bed_size_to_numeric("50-99") == 74.5
+    assert stats._bed_size_to_numeric("500+") == 500.0
+    assert np.isnan(stats._bed_size_to_numeric(None))
+    assert np.isnan(stats._bed_size_to_numeric("unknown"))
+
+def test_rank_counties_by_burden():
+    summary = pd.DataFrame(
+        {
+            "CountyName": ["A", "B", "C"],
+            "visits_per_station": [10, 30, 20],
+        }
+    )
+
+    ranked = stats.rank_counties_by_burden(summary)
+
+    assert list(ranked["CountyName"]) == ["B", "C", "A"]
+
+
+def test_county_capacity_summary(monkeypatch):
+    fake_df = pd.DataFrame(
+        {
+            "CountyName": ["Alameda", "Alameda", "Fresno"],
+            "Tot_ED_NmbVsts": [100, 200, 90],
+            "EDStations": [10, 20, 0],
+            "LICENSED_BED_SIZE": ["1-49", "50-99", "100-199"],
+        }
+    )
+
+    def fake_download(state):
+        return fake_df
+
+    monkeypatch.setattr(stats, "download_emergency_data", fake_download)
+
+    result = stats.county_capacity_summary("California")
+
+    alameda = result[result["CountyName"] == "Alameda"].iloc[0]
+    fresno = result[result["CountyName"] == "Fresno"].iloc[0]
+
+    assert alameda["total_visits"] == 300
+    assert alameda["total_stations"] == 30
+    assert alameda["total_beds"] == 25.0 + 74.5
+    assert alameda["visits_per_station"] == 10
+
+    assert fresno["total_visits"] == 90
+    assert fresno["total_stations"] == 0
+    assert np.isnan(fresno["visits_per_station"])
 
 
 def test_find_capacity_volume_mismatch_flags_expected_hospital():
