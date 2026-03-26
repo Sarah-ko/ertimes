@@ -1,6 +1,41 @@
 import re
 import numpy as np
 import pandas as pd
+from ertimes.io import download_emergency_data
+
+
+def county_capacity_summary(state: str) -> pd.DataFrame:
+    """
+    Return a county-level summary of emergency department capacity data.
+
+    Parameters
+    ----------
+    state : str
+        Name of the state to download data for.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with one row per county containing total visits,
+        total ED stations, total licensed beds, and visits per station.
+    """
+    df = download_emergency_data(state)
+
+    summary = (
+        df.groupby("CountyName")
+        .agg(
+            total_visits=("Tot_ED_NmbVsts", "sum"),
+            total_stations=("EDStations", "sum"),
+            total_beds=("LICENSED_BED_SIZE", "sum"),
+        )
+        .reset_index()
+    )
+
+    summary["visits_per_station"] = (
+        summary["total_visits"] / summary["total_stations"]
+    )
+
+    return summary
 
 
 def _bed_size_to_numeric(value: object) -> float:
@@ -66,9 +101,9 @@ def find_capacity_volume_mismatch(
     visit_col, stations_col, bed_col, facility_col, county_col, year_col : str
         Column names in df.
     high_visit_quantile : float
-        Percentile threshold for “high visits”.
+        Percentile threshold for "high visits".
     low_capacity_quantile : float
-        Percentile threshold for “low capacity”.
+        Percentile threshold for "low capacity".
     min_visits : int | None
         Optional minimum visits threshold before a hospital is considered.
 
@@ -90,15 +125,13 @@ def find_capacity_volume_mismatch(
 
     working = df.copy()
 
-    # Convert bed-size categories to approximate numeric values
     working["bed_size_numeric"] = working[bed_col].apply(_bed_size_to_numeric)
-
-    # Coerce numeric columns safely
     working[visit_col] = pd.to_numeric(working[visit_col], errors="coerce")
     working[stations_col] = pd.to_numeric(working[stations_col], errors="coerce")
 
-    # Drop rows where we cannot compute the comparison
-    working = working.dropna(subset=[visit_col, stations_col, "bed_size_numeric"]).copy()
+    working = working.dropna(
+        subset=[visit_col, stations_col, "bed_size_numeric"]
+    ).copy()
 
     if min_visits is not None:
         working = working[working[visit_col] >= min_visits].copy()
@@ -106,17 +139,20 @@ def find_capacity_volume_mismatch(
     if working.empty:
         return working
 
-    # Percentile-based scores make the measure scale-independent
-    working["visit_percentile"] = working[visit_col].rank(pct=True, method="average")
-    working["station_percentile"] = working[stations_col].rank(pct=True, method="average")
-    working["bed_percentile"] = working["bed_size_numeric"].rank(pct=True, method="average")
+    working["visit_percentile"] = working[visit_col].rank(
+        pct=True, method="average"
+    )
+    working["station_percentile"] = working[stations_col].rank(
+        pct=True, method="average"
+    )
+    working["bed_percentile"] = working["bed_size_numeric"].rank(
+        pct=True, method="average"
+    )
 
-    # Average of the two capacity-related percentile measures
     working["capacity_percentile"] = (
         working["station_percentile"] + working["bed_percentile"]
     ) / 2.0
 
-    # Positive means visits are high relative to capacity
     working["mismatch_score"] = (
         working["visit_percentile"] - working["capacity_percentile"]
     )
@@ -146,8 +182,11 @@ def find_capacity_volume_mismatch(
         by="mismatch_score", ascending=False
     ).reset_index(drop=True)
 
-#Julianne's year_range function
-def year_range(data):
-    earliest_year = data['year'].min()
-    latest_year=data['year'].max()
-    return "earliest year: " + str(earliest_year), "latest year: " + str(latest_year)
+
+def year_range(data: pd.DataFrame) -> tuple[str, str]:
+    earliest_year = data["year"].min()
+    latest_year = data["year"].max()
+    return (
+        "earliest year: " + str(earliest_year),
+        "latest year: " + str(latest_year),
+    )
