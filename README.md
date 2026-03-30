@@ -3,7 +3,7 @@
 
 ---
 
-# 🚀 Quick Start (How to Run)
+# Quick Start (How to Run)
 
 The easiest way to use this package is through the demo script:
 
@@ -27,7 +27,7 @@ If you encounter version issues, ensure your Python version matches the requirem
 
 ---
 
-# 📦 Installation
+# Installation
 
 Clone the repository:
 
@@ -76,7 +76,7 @@ The package provides functionality for:
 
 ---
 
-# 🌎 Dataset
+# Dataset
 
 This package was originally built using a dataset from **data.gov** containing:
 
@@ -86,7 +86,7 @@ The goal is to **generalize this package to support datasets from other states a
 
 ---
 
-# 🏗️ Project Structure
+# Project Structure
 
 ```
 ertimes/
