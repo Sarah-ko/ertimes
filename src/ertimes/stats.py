@@ -159,15 +159,6 @@ def find_capacity_volume_mismatch(
     ).reset_index(drop=True)
 
 
-def year_range(data: pd.DataFrame) -> tuple[str, str]:
-    earliest_year = data["year"].min()
-    latest_year = data["year"].max()
-    return (
-        "earliest year: " + str(earliest_year),
-        "latest year: " + str(latest_year),
-    )
-
-
 def compute_capacity_pressure_score(df: pd.DataFrame) -> pd.DataFrame:
     """
     Computes a capacity pressure score (1–10) per facility, grouped by FacilityName2.
@@ -306,3 +297,12 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
     output_path = f"data/load_distribution_{group_col}.png"
     plt.savefig(output_path)
     print(f"\nSuccess: Distribution plot saved to {output_path}")
+
+    #julianne year range function
+def year_range(csv_file):
+   df=pd.read_csv(csv_file)
+   earliest_year = df['year'].min()
+   latest_year=df['year'].max()
+   print(year_range('data/Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv'))
+   return "earliest year: " + str(earliest_year), "latest year: " + str(latest_year)
+
