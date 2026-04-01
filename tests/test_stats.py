@@ -116,3 +116,49 @@ def test_find_capacity_volume_mismatch_missing_column_raises():
 
     with pytest.raises(ValueError, match="Missing required columns"):
         find_capacity_volume_mismatch(df)
+
+
+def test_find_duplicates_basic():
+    df = pd.DataFrame({
+        "A": [1, 2, 2],
+        "B": ["x", "y", "y"]
+    })
+
+    result = stats.find_duplicates(df)
+
+    assert len(result) == 2
+
+
+def test_find_duplicates_subset():
+    df = pd.DataFrame({
+        "A": [1, 2, 2, 2],
+        "B": ["x", "y", "z", "y"]
+    })
+
+    result = stats.find_duplicates(df, subset=["A"])
+
+    assert len(result) == 3
+
+
+def test_find_duplicates_no_duplicates():
+    df = pd.DataFrame({
+        "A": [1, 2, 3]
+    })
+
+    result = stats.find_duplicates(df)
+
+    assert result.empty
+
+
+def test_find_duplicates_bad_subset():
+    df = pd.DataFrame({
+        "A": [1, 2]
+    })
+
+    with pytest.raises(ValueError):
+        stats.find_duplicates(df, subset=["Z"])
+
+
+def test_find_duplicates_bad_input_type():
+    with pytest.raises(TypeError):
+        stats.find_duplicates([1, 2, 3])
