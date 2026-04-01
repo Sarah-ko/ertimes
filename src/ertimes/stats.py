@@ -244,3 +244,36 @@ def compute_capacity_pressure_score(df: pd.DataFrame) -> pd.DataFrame:
     return grouped[['FacilityName2', 'capacity_pressure_score']].sort_values(
         'capacity_pressure_score', ascending=False
     ).reset_index(drop=True)
+
+
+def find_duplicates(
+    df: pd.DataFrame,
+    subset: list[str] | None = None,
+) -> pd.DataFrame:
+    """
+    Return all duplicate rows in a DataFrame.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame.
+    subset : list[str] | None
+        Columns to check duplicates on.
+
+    Returns
+    -------
+    pd.DataFrame
+        Duplicate rows.
+    """
+
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("df must be a pandas DataFrame")
+
+    if subset is not None:
+        missing = [col for col in subset if col not in df.columns]
+        if missing:
+            raise ValueError(f"Missing columns: {missing}")
+
+    duplicates = df[df.duplicated(subset=subset, keep=False)].copy()
+
+    return duplicates
