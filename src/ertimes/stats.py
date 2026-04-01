@@ -256,5 +256,10 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
     if clean_df.empty:
         print(f"Warning: No valid data available for {group_col}.")
         return None
-        
-    return clean_df
+    
+    avg_load = clean_df.groupby(group_col)['Visits_Per_Station'].mean().sort_values(ascending=False)
+    
+    print(f"\n--- Statistical Summary: Mean Visits per Station by {group_col} ---")
+    print(avg_load.head())
+    
+    return clean_df, avg_load
