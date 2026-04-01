@@ -2,6 +2,8 @@ import re
 import numpy as np
 import pandas as pd
 from ertimes.io import download_emergency_data
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 def county_capacity_summary(state: str) -> pd.DataFrame:
@@ -244,3 +246,15 @@ def compute_capacity_pressure_score(df: pd.DataFrame) -> pd.DataFrame:
     return grouped[['FacilityName2', 'capacity_pressure_score']].sort_values(
         'capacity_pressure_score', ascending=False
     ).reset_index(drop=True)
+
+def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'HospitalOwnership'):
+    """
+    Prepares and cleans emergency department data for load distribution analysis.
+    """
+    clean_df = df.dropna(subset=['Visits_Per_Station', group_col]).copy()
+    
+    if clean_df.empty:
+        print(f"Warning: No valid data available for {group_col}.")
+        return None
+        
+    return clean_df
