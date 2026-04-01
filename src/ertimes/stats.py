@@ -262,4 +262,14 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
     print(f"\n--- Statistical Summary: Mean Visits per Station by {group_col} ---")
     print(avg_load.head())
     
-    return clean_df, avg_load
+    plt.figure(figsize=(12, 6))
+    sns.boxplot(data=clean_df, x=group_col, y='Visits_Per_Station', palette="viridis")
+    
+    plt.title(f'Distribution of ED Visits per Station by {group_col}')
+    plt.xticks(rotation=45)
+    plt.ylabel('Visits per Station')
+    plt.tight_layout()
+    
+    output_path = f"data/load_distribution_{group_col}.png"
+    plt.savefig(output_path)
+    print(f"\nSuccess: Distribution plot saved to {output_path}")
