@@ -247,29 +247,35 @@ def compute_capacity_pressure_score(df: pd.DataFrame) -> pd.DataFrame:
         'capacity_pressure_score', ascending=False
     ).reset_index(drop=True)
 
-def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'HospitalOwnership'):
+
+def find_duplicates(
+    df: pd.DataFrame,
+    subset: list[str] | None = None,
+) -> pd.DataFrame:
     """
-    Prepares and cleans emergency department data for load distribution analysis.
+    Return all duplicate rows in a DataFrame.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame.
+    subset : list[str] | None
+        Columns to check duplicates on.
+
+    Returns
+    -------
+    pd.DataFrame
+        Duplicate rows.
     """
-    clean_df = df.dropna(subset=['Visits_Per_Station', group_col]).copy()
-    
-    if clean_df.empty:
-        print(f"Warning: No valid data available for {group_col}.")
-        return None
-    
-    avg_load = clean_df.groupby(group_col)['Visits_Per_Station'].mean().sort_values(ascending=False)
-    
-    print(f"\n--- Statistical Summary: Mean Visits per Station by {group_col} ---")
-    print(avg_load.head())
-    
-    plt.figure(figsize=(12, 6))
-    sns.boxplot(data=clean_df, x=group_col, y='Visits_Per_Station', palette="viridis")
-    
-    plt.title(f'Distribution of ED Visits per Station by {group_col}')
-    plt.xticks(rotation=45)
-    plt.ylabel('Visits per Station')
-    plt.tight_layout()
-    
-    output_path = f"data/load_distribution_{group_col}.png"
-    plt.savefig(output_path)
-    print(f"\nSuccess: Distribution plot saved to {output_path}")
+
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("df must be a pandas DataFrame")
+
+    if subset is not None:
+        missing = [col for col in subset if col not in df.columns]
+        if missing:
+            raise ValueError(f"Missing columns: {missing}")
+
+    duplicates = df[df.duplicated(subset=subset, keep=False)].copy()
+
+    return duplicates
