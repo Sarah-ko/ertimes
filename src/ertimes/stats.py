@@ -306,17 +306,47 @@ def year_range(csv_file):
    print(year_range('data/Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv'))
    return "earliest year: " + str(earliest_year), "latest year: " + str(latest_year)
 
-def plot_facility_trend(df, facility_id):
+def plot_facility_trend(df: pd.DataFrame, facility_id: str):
     """
-    Line plots of ED visits over time for a facility.
+    Plots a time series of ED visits over time for a single facility.
     """
 
-    facility_df = df[df['FacilityName2'] == facility_id]
+    required_cols = ['FacilityName2', 'year', 'Tot_ED_NmbVsts']
+    missing = [col for col in required_cols if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
 
-    plt.figure()
+    # Filter facility
+    facility_df = df[df['FacilityName2'] == facility_id].copy()
+
+    if facility_df.empty:
+        raise ValueError(f"No data found for facility '{facility_id}'")
+
+    #convert to numeric
+    facility_df['year'] = pd.to_numeric(facility_df['year'], errors='coerce')
+    facility_df['Tot_ED_NmbVsts'] = pd.to_numeric(
+        facility_df['Tot_ED_NmbVsts'], errors='coerce')
+
+    #drop missing rows
+    facility_df = facility_df.dropna(subset=['year', 'Tot_ED_NmbVsts'])
+
+    if facility_df.empty:
+        raise ValueError(f"No valid numeric data for facility '{facility_id}'")
+
+    facility_df = facility_df.sort_values('year')
+
+    #create plot
+    plt.figure(figsize=(10, 6))
     sns.lineplot(
         data=facility_df,
         x='year',
-        y='Tot_ED_NmbVsts')
-    
+        y='Tot_ED_NmbVsts',
+        marker='o'
+    )
+
+    plt.title(f"ED Visits Trend for {facility_id}")
+    plt.xlabel("Year")
+    plt.ylabel("Total ED Visits")
+    plt.tight_layout()
+
     return plt.gcf()
