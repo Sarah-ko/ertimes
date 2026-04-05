@@ -306,3 +306,17 @@ def year_range(csv_file):
    print(year_range('data/Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv'))
    return "earliest year: " + str(earliest_year), "latest year: " + str(latest_year)
 
+def plot_facility_trend(df, facility_id):
+    """
+    Line plots of ED visits over time for a facility.
+    """
+
+    facility_df = df[df['FacilityName2'] == facility_id]
+
+    plt.figure()
+    sns.lineplot(
+        data=facility_df,
+        x='year',
+        y='Tot_ED_NmbVsts')
+    
+    return plt.gcf()
