@@ -162,3 +162,35 @@ def test_find_duplicates_bad_subset():
 def test_find_duplicates_bad_input_type():
     with pytest.raises(TypeError):
         stats.find_duplicates([1, 2, 3])
+
+def test_plot_facility_trend_returns_figure():
+    df = pd.DataFrame({
+        'FacilityName2': ['A', 'A'],
+        'year': [2020, 2021],
+        'Tot_ED_NmbVsts': [100, 120]
+    })
+
+    fig = stats.plot_facility_trend(df, 'A')
+    assert fig is not None
+    assert hasattr(fig, "savefig")
+
+
+def test_invalid_facility():
+    df = pd.DataFrame({
+        'FacilityName2': ['A'],
+        'year': [2020],
+        'Tot_ED_NmbVsts': [100]
+    })
+
+    with pytest.raises(ValueError):
+        stats.plot_facility_trend(df, 'B')
+
+
+def test_missing_columns():
+    df = pd.DataFrame({
+        'FacilityName2': ['A'],
+        'year': [2020]
+    })
+
+    with pytest.raises(ValueError):
+        stats.plot_facility_trend(df, 'A')
