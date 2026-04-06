@@ -350,3 +350,23 @@ def plot_facility_trend(df: pd.DataFrame, facility_id: str):
     plt.tight_layout()
 
     return plt.gcf()
+
+def mental_health_shortage_analysis(df):
+    df = df.copy()
+
+    df['Tot_ED_NmbVsts'] = pd.to_numeric(df['Tot_ED_NmbVsts'], errors='coerce')
+    df['EDStations'] = pd.to_numeric(df['EDStations'], errors='coerce')
+
+    df['EDStations'] = df['EDStations'].replace(0, 0.0001)
+
+    df['burden_score'] = df['Tot_ED_NmbVsts'] / df['EDStations']
+
+    avg_burden = df['burden_score'].mean()
+
+    #Shortage & Burden -> High Risk
+    df['high_risk'] = (
+        (df['MentalHealthShortageArea'] == 'Yes') &
+        (df['burden_score'] > avg_burden)
+    )
+
+    return df
