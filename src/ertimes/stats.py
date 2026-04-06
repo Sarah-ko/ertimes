@@ -352,6 +352,62 @@ def plot_facility_trend(df: pd.DataFrame, facility_id: str):
 
     return plt.gcf()
 
+
+def run_er_analysis(df, hospital_name=None):
+    """
+    Minimal ER analysis:
+    - Compute year-over-year (YoY) changes
+    - Use visits per station as a proxy for utilization
+    - Detect mismatches between demand and capacity
+    - Generate simple visualizations
+    """
+
+    # ===== 1. Sort data and compute YoY =====
+    df = df.sort_values(["oshpd_id", "year"]).copy()
+
+    df["YoY_Visits"] = df.groupby("oshpd_id")["Tot_ED_NmbVsts"].pct_change()
+
+    # ===== 2. Utilization proxy =====
+    df["Utilization"] = df["Visits_Per_Station"]
+
+    # ===== 3. Mismatch detection =====
+    # Flag cases where demand increases but capacity does not
+    df["Utilization_change"] = df.groupby("oshpd_id")["Utilization"].pct_change(fill_method=None)
+
+    df["Mismatch"] = (
+        (df["YoY_Visits"] > 0) & (df["Utilization_change"] <= 0)
+    )
+
+    # ===== 4. Plot: Capacity vs Demand =====
+    plt.figure()
+    plt.scatter(df["Visits_Per_Station"], df["Tot_ED_NmbVsts"])
+    plt.xlabel("Capacity (Visits per Station)")
+    plt.ylabel("Demand (Total Visits)")
+    plt.title("Capacity vs Demand")
+    plt.show()
+
+    # ===== 5. Plot: Time series trend (optional hospital) =====
+    if hospital_name:
+        data = df[df["FacilityName2"] == hospital_name]
+
+        plt.figure()
+        plt.plot(data["year"], data["Tot_ED_NmbVsts"], marker="o")
+        plt.title(f"ER Visits Trend - {hospital_name}")
+        plt.xlabel("Year")
+        plt.ylabel("Visits")
+        plt.show()
+
+    # ===== 6. Plot: YoY trend =====
+    yoy = df.groupby("year")["YoY_Visits"].mean()
+
+    plt.figure()
+    yoy.plot(marker="o")
+    plt.title("Average Year-over-Year Change in ER Visits")
+    plt.xlabel("Year")
+    plt.ylabel("YoY Change")
+    plt.show()
+
+    return df
 # Jiaqi Lin: Urban vs rural disparity dashboard
 
 import os
