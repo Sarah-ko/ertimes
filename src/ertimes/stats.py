@@ -4,6 +4,7 @@ import pandas as pd
 from ertimes.io import download_emergency_data
 import matplotlib.pyplot as plt
 import seaborn as sns
+import folium
 
 
 def county_capacity_summary(state: str) -> pd.DataFrame:
@@ -176,7 +177,6 @@ def compute_capacity_pressure_score(df: pd.DataFrame) -> pd.DataFrame:
         DataFrame with FacilityName2 and their capacity_pressure_score (1–10)
     """
 
-    # --- 1. Bed size ordinal mapping (larger = more capacity = less pressure) ---
     bed_size_order = {
         '1-49':    1,
         '50-99':   2,
@@ -190,7 +190,6 @@ def compute_capacity_pressure_score(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df['bed_size_rank'] = df['LICENSED_BED_SIZE'].map(bed_size_order)
 
-    # --- 2. Aggregate by facility (median for numeric, mode for categorical) ---
     def safe_mode(series):
         mode = series.mode()
         return mode.iloc[0] if not mode.empty else np.nan
@@ -202,26 +201,22 @@ def compute_capacity_pressure_score(df: pd.DataFrame) -> pd.DataFrame:
         bed_size_rank        = ('bed_size_rank',            'median')
     ).reset_index()
 
-    # --- 3. Normalize Visits_Per_Station to 0–1 ---
     vps_min = grouped['visits_per_station'].min()
     vps_max = grouped['visits_per_station'].max()
     grouped['vps_norm'] = (grouped['visits_per_station'] - vps_min) / (vps_max - vps_min + 1e-9)
 
-    # --- 4. Shortage area penalty: Yes = 1 (adds pressure), No = 0 ---
     grouped['pc_pressure']  = (grouped['primary_care_shortage']  == 'Yes').astype(float)
     grouped['mh_pressure']  = (grouped['mental_health_shortage'] == 'Yes').astype(float)
 
-    # --- 5. Normalize bed size rank inversely (smaller beds = more pressure) ---
     bed_min = grouped['bed_size_rank'].min()
     bed_max = grouped['bed_size_rank'].max()
     grouped['bed_pressure'] = 1 - (grouped['bed_size_rank'] - bed_min) / (bed_max - bed_min + 1e-9)
 
-    # --- 6. Weighted composite score (weights sum to 1.0) ---
     weights = {
-        'vps_norm':    0.50,   # Utilization is the primary driver
-        'pc_pressure': 0.20,   # Primary care shortage adds pressure
-        'mh_pressure': 0.15,   # Mental health shortage adds pressure
-        'bed_pressure': 0.15   # Smaller bed size adds pressure
+        'vps_norm':    0.50,   
+        'pc_pressure': 0.20,   
+        'mh_pressure': 0.15,   
+        'bed_pressure': 0.15   
     }
 
     grouped['raw_score'] = (
@@ -231,7 +226,6 @@ def compute_capacity_pressure_score(df: pd.DataFrame) -> pd.DataFrame:
         grouped['bed_pressure'] * weights['bed_pressure']
     )
 
-    # --- 7. Scale raw score (0–1) to final score (1–10) ---
     grouped['capacity_pressure_score'] = (grouped['raw_score'] * 9 + 1).round(2)
 
     return grouped[['FacilityName2', 'capacity_pressure_score']].sort_values(
@@ -298,7 +292,6 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
     plt.savefig(output_path)
     print(f"\nSuccess: Distribution plot saved to {output_path}")
 
-    #julianne year range function
 def year_range(csv_file):
    df=pd.read_csv(csv_file)
    earliest_year = df['year'].min()
@@ -306,3 +299,247 @@ def year_range(csv_file):
    print(year_range('data/Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv'))
    return "earliest year: " + str(earliest_year), "latest year: " + str(latest_year)
 
+def plot_facility_trend(df: pd.DataFrame, facility_id: str):
+    """
+    Plots a time series of ED visits over time for a single facility.
+    """
+
+    required_cols = ['FacilityName2', 'year', 'Tot_ED_NmbVsts']
+    missing = [col for col in required_cols if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+    facility_df = df[df['FacilityName2'] == facility_id].copy()
+
+    if facility_df.empty:
+        raise ValueError(f"No data found for facility '{facility_id}'")
+
+    facility_df['year'] = pd.to_numeric(facility_df['year'], errors='coerce')
+    facility_df['Tot_ED_NmbVsts'] = pd.to_numeric(
+        facility_df['Tot_ED_NmbVsts'], errors='coerce')
+
+    facility_df = facility_df.dropna(subset=['year', 'Tot_ED_NmbVsts'])
+
+    if facility_df.empty:
+        raise ValueError(f"No valid numeric data for facility '{facility_id}'")
+
+    facility_df = facility_df.sort_values('year')
+
+    plt.figure(figsize=(10, 6))
+    sns.lineplot(
+        data=facility_df,
+        x='year',
+        y='Tot_ED_NmbVsts',
+        marker='o'
+    )
+
+    plt.title(f"ED Visits Trend for {facility_id}")
+    plt.xlabel("Year")
+    plt.ylabel("Total ED Visits")
+    plt.tight_layout()
+
+    return plt.gcf()
+
+
+def run_er_analysis(df, hospital_name=None):
+    """
+    Minimal ER analysis:
+    - Compute year-over-year (YoY) changes
+    - Use visits per station as a proxy for utilization
+    - Detect mismatches between demand and capacity
+    - Generate simple visualizations
+    """
+
+    df = df.sort_values(["oshpd_id", "year"]).copy()
+
+    df["YoY_Visits"] = df.groupby("oshpd_id")["Tot_ED_NmbVsts"].pct_change()
+
+    df["Utilization"] = df["Visits_Per_Station"]
+
+    df["Utilization_change"] = df.groupby("oshpd_id")["Utilization"].pct_change(fill_method=None)
+
+    df["Mismatch"] = (
+        (df["YoY_Visits"] > 0) & (df["Utilization_change"] <= 0)
+    )
+
+    plt.figure()
+    plt.scatter(df["Visits_Per_Station"], df["Tot_ED_NmbVsts"])
+    plt.xlabel("Capacity (Visits per Station)")
+    plt.ylabel("Demand (Total Visits)")
+    plt.title("Capacity vs Demand")
+    plt.show()
+
+    if hospital_name:
+        data = df[df["FacilityName2"] == hospital_name]
+
+        plt.figure()
+        plt.plot(data["year"], data["Tot_ED_NmbVsts"], marker="o")
+        plt.title(f"ER Visits Trend - {hospital_name}")
+        plt.xlabel("Year")
+        plt.ylabel("Visits")
+        plt.show()
+
+    yoy = df.groupby("year")["YoY_Visits"].mean()
+
+    plt.figure()
+    yoy.plot(marker="o")
+    plt.title("Average Year-over-Year Change in ER Visits")
+    plt.xlabel("Year")
+    plt.ylabel("YoY Change")
+    plt.show()
+
+    return df
+
+import os
+import folium
+from folium.plugins import MarkerCluster
+import pandas as pd
+
+
+def plot_urban_rural_map(state: str) -> folium.Map:
+    """Downloads emergency data for a given state and displays hospital
+
+    locations on an interactive map.
+
+    Duplicate coordinates are merged to prevent overlapping issues on the map.
+    """
+    print(f"Loading/Downloading dataset for state: {state}...")
+    df = download_emergency_data(state)
+
+    required_cols = ["LATITUDE", "LONGITUDE", "UrbanRuralDesi", "FacilityName2"]
+    missing = [col for col in required_cols if col not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Downloaded dataset is missing required columns for mapping: {missing}"
+        )
+
+    map_data = df.dropna(subset=["LATITUDE", "LONGITUDE"]).copy()
+
+    map_data["LATITUDE"] = pd.to_numeric(map_data["LATITUDE"], errors="coerce")
+    map_data["LONGITUDE"] = pd.to_numeric(
+        map_data["LONGITUDE"], errors="coerce"
+    )
+    map_data = map_data.dropna(subset=["LATITUDE", "LONGITUDE"])
+
+    print(f"Total raw hospital records: {len(map_data)}")
+
+    map_data = (
+        map_data.groupby(["LATITUDE", "LONGITUDE"])
+        .agg(
+            {
+                "FacilityName2": lambda x: "<br>".join(
+                    x.dropna().astype(str).unique()
+                ),
+                "UrbanRuralDesi": "first",
+            }
+        )
+        .reset_index()
+    )
+
+    total_unique_locations = len(map_data)
+    print(
+        f"Data processing complete. Found {total_unique_locations} unique hospital locations."
+    )
+
+    if total_unique_locations == 0:
+        print("Warning: No valid hospital coordinates found to plot.")
+        return None
+
+    center_lat = map_data["LATITUDE"].mean()
+    center_lon = map_data["LONGITUDE"].mean()
+
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=7)
+
+    marker_cluster = MarkerCluster(
+        spiderfyOnMaxZoom=False,
+        showCoverageOnHover=False,
+        disableClusteringAtZoom=9,  
+    ).add_to(m)
+
+    for _, row in map_data.iterrows():
+        hospital_names = row["FacilityName2"]
+        area_type = str(row["UrbanRuralDesi"]).strip().lower()
+
+        if "urban" in area_type:
+            marker_color = "blue"
+            marker_icon = "cloud"
+        elif "rural" in area_type:
+            marker_color = "red"
+            marker_icon = "leaf"
+        else:
+            marker_color = "gray"
+            marker_icon = "info-sign"
+
+        folium.Marker(
+            location=[row["LATITUDE"], row["LONGITUDE"]],
+            popup=f"<b>Hospital(s):</b><br>{hospital_names}<br><b>Type:</b> {row['UrbanRuralDesi']}",
+            icon=folium.Icon(color=marker_color, icon=marker_icon),
+        ).add_to(marker_cluster)
+
+    output_dir = "data"
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = f"{output_dir}/urban_rural_map_{state}.html"
+
+    m.save(output_path)
+    print(f"\nSuccess: Map saved to {output_path}")
+
+    return m
+
+
+if __name__ == "__main__":
+    target_state = "california"
+    hospital_map = plot_urban_rural_map(target_state)
+
+def mental_health_shortage_analysis(df):
+    df = df.copy()
+
+    df['Tot_ED_NmbVsts'] = pd.to_numeric(df['Tot_ED_NmbVsts'], errors='coerce')
+    df['EDStations'] = pd.to_numeric(df['EDStations'], errors='coerce')
+
+    df['EDStations'] = df['EDStations'].replace(0, 0.0001)
+
+    df['burden_score'] = df['Tot_ED_NmbVsts'] / df['EDStations']
+
+    avg_burden = df['burden_score'].mean()
+
+    df['high_risk'] = (
+        (df['MentalHealthShortageArea'] == 'Yes') &
+        (df['burden_score'] > avg_burden)
+    )
+
+    return df
+
+
+def summarize_by_ownership(df,
+    ownership_type="HospitalOwnership",
+    total_visits="Tot_ED_NmbVsts",
+    stations="EDStations",
+    visits_perstation="Visits_Per_Station"):
+    """
+    group hospitals by ownership type and compute summary statistics for burden, volume, & capacity insight 
+    """
+
+    required = [ownership_type, total_visits, stations, visits_perstation]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+    df = df.copy()
+
+    df[total_visits] = pd.to_numeric(df[total_visits], errors="coerce")
+    df[stations] = pd.to_numeric(df[stations], errors="coerce")
+    df[visits_perstation] = pd.to_numeric(df[visits_perstation], errors="coerce")
+
+
+    df = df.dropna(subset=[ownership_type])
+
+    summary = df.groupby(ownership_type).agg({
+    total_visits: ["mean", "sum"],
+    stations: ["mean", "sum"],
+    visits_perstation: ["mean", "median", "std"]})
+
+    summary.columns = ["_".join(col) for col in summary.columns]
+    summary = summary.reset_index()
+    summary = summary.sort_values(by=f"{visits_perstation}_mean", ascending=False)
+    
+    return summary
