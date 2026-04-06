@@ -194,3 +194,29 @@ def test_missing_columns():
 
     with pytest.raises(ValueError):
         stats.plot_facility_trend(df, 'A')
+
+
+
+def test_per_category_burden_basic():
+    df = pd.DataFrame({
+        "FacilityName2": ["A", "B", "C"],
+        "Category": ["Mental Health", "Mental Health", "Stroke"],
+        "Visits_Per_Station": [10, 20, 15]
+    })
+    result = stats.per_category_burden_report(df, top_n=2)
+    expected = {
+        "Mental Health": ["B", "A"],  # top 2 by Visits_Per_Station
+        "Stroke": ["C"]
+        
+    }
+    assert result == expected
+
+def test_per_category_burden_missing_column():
+    df = pd.DataFrame({
+        "FacilityName2": ["A"],
+        "Tot_ED_NmbVsts": [10]  # missing 'Category' and 'Visits_Per_Station'
+    })
+    with pytest.raises(KeyError):
+        stats.per_category_burden_report(df)
+
+        
