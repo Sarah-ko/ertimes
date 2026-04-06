@@ -196,14 +196,27 @@ def test_missing_columns():
         stats.plot_facility_trend(df, 'A')
 
 def test_per_category_burden_basic():
-    df = pd.DataFrame({
-        "FacilityName2": ["A", "A", "B"],
-        "Category": ["Mental Health", "Stroke", "Mental Health"],
-        "Tot_ED_NmbVsts": [10, 20, 30]
-    })
+    df = pd.DataFrame(
+        {
+            "FacilityName2": ["A", "A", "B"],
+            "Category": ["Mental Health", "Stroke", "Mental Health"],
+            "Tot_ED_NmbVsts": [10, 20, 30],
+        }
+    )
 
     result = stats.per_category_burden(df)
 
     assert result.loc["A", "Mental Health"] == 10
     assert result.loc["A", "Stroke"] == 20
     assert result.loc["B", "Mental Health"] == 30
+
+def test_per_category_burden_missing_column_raises():
+    df = pd.DataFrame(
+        {
+            "FacilityName2": ["A"],
+            "Tot_ED_NmbVsts": [10],
+        }
+    )
+
+    with pytest.raises(ValueError, match="Missing required columns"):
+        stats.per_category_burden(df)
