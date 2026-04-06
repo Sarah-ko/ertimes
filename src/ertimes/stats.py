@@ -350,3 +350,43 @@ def plot_facility_trend(df: pd.DataFrame, facility_id: str):
     plt.tight_layout()
 
     return plt.gcf()
+
+import pandas as pd
+
+def per_category_burden_report(df, top_n=3):
+    """
+    Generates a per-category burden report for facilities.
+
+    Parameters:
+        df (pd.DataFrame): Dataset containing at least 'FacilityName2', 'Category', 'Visits_Per_Station'
+        top_n (int): Number of top facilities to report per category (default 3)
+
+    Returns:
+        dict: Dictionary with categories as keys and a list of top facility names as values
+    """
+    # Ensure required columns exist
+    required_cols = ["FacilityName2", "Category", "Visits_Per_Station"]
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        raise KeyError(f"Missing required columns: {missing_cols}")
+
+    report = {}
+    
+    # Get unique categories
+    categories = df["Category"].unique()
+    
+    for category in categories:
+        # Filter data for this category
+        cat_df = df[df["Category"] == category]
+        
+        # Sort by Visits_Per_Station descending
+        cat_df = cat_df.sort_values(by="Visits_Per_Station", ascending=False)
+        
+        # Select top_n facilities
+        top_facilities = cat_df["FacilityName2"].head(top_n).tolist()
+        
+        # Add to report
+        report[category] = top_facilities
+    
+    return report
+
