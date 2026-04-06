@@ -582,3 +582,59 @@ def summarize_by_ownership(df,
     summary = summary.sort_values(by=f"{visits_perstation}_mean", ascending=False)
     
     return summary
+
+
+
+def clean_growth(df):
+   df = df.copy()
+
+
+   # clear NAs
+   df = df.dropna(subset=["Tot_ED_NmbVsts", "year"])
+
+
+   # types
+   df["year"] = df["year"].astype(int)
+   df["Tot_ED_NmbVsts"] = pd.to_numeric(df["Tot_ED_NmbVsts"], errors="coerce")
+
+
+   df = df.sort_values(by=["FacilityName2", "year"])
+
+
+   return df
+
+
+
+def calculate_growth(df, value_col, group_cols, time_col="year", pct=True):
+   """
+   Parameters:
+   - df: Data Frame
+   - value_col: column to calculate growth on ('Tot_ED_NmbVsts')
+   - group_cols: list of columns to group by ('oshpd_id')
+   - time_col: time ('year')
+   - pct: if True, returns percent growth; else raw difference
+   """
+
+
+   df = df.copy()
+
+
+   # Sort
+   df = df.sort_values(by=group_cols + [time_col])
+
+
+   # Calculate previous value
+   df["prev_value"] = df.groupby(group_cols)[value_col].shift(1)
+
+
+   # Growth calculation
+   if pct:
+       df["growth"] = (df[value_col] - df["prev_value"]) / df["prev_value"] * 100
+   else:
+       df["growth"] = df[value_col] - df["prev_value"]
+
+
+   return df
+
+
+
