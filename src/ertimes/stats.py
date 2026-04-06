@@ -466,3 +466,22 @@ def plot_urban_rural_map(state: str) -> folium.Map:
 if __name__ == "__main__":
     target_state = "california"
     hospital_map = plot_urban_rural_map(target_state)
+def mental_health_shortage_analysis(df):
+    df = df.copy()
+
+    df['Tot_ED_NmbVsts'] = pd.to_numeric(df['Tot_ED_NmbVsts'], errors='coerce')
+    df['EDStations'] = pd.to_numeric(df['EDStations'], errors='coerce')
+
+    df['EDStations'] = df['EDStations'].replace(0, 0.0001)
+
+    df['burden_score'] = df['Tot_ED_NmbVsts'] / df['EDStations']
+
+    avg_burden = df['burden_score'].mean()
+
+    #Shortage & Burden -> High Risk
+    df['high_risk'] = (
+        (df['MentalHealthShortageArea'] == 'Yes') &
+        (df['burden_score'] > avg_burden)
+    )
+
+    return df
