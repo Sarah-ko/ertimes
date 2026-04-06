@@ -541,3 +541,44 @@ def mental_health_shortage_analysis(df):
     )
 
     return df
+
+
+#delaney summary stats by ownerhip function
+def summarize_by_ownership(df,
+    ownership_type="HospitalOwnership",
+    total_visits="Tot_ED_NmbVsts",
+    stations="EDStations",
+    visits_perstation="Visits_Per_Station"):
+    """
+    group hospitals by ownership type and compute summary statistics for burden, volume, & capacity insight 
+    """
+
+    # validate
+    required = [ownership_type, total_visits, stations, visits_perstation]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+    df = df.copy()
+
+    # ensure converted to numeric
+    df[total_visits] = pd.to_numeric(df[total_visits], errors="coerce")
+    df[stations] = pd.to_numeric(df[stations], errors="coerce")
+    df[visits_perstation] = pd.to_numeric(df[visits_perstation], errors="coerce")
+
+
+    # drop missing ownership
+    df = df.dropna(subset=[ownership_type])
+
+    # group & aggregate
+    summary = df.groupby(ownership_type).agg({
+    total_visits: ["mean", "sum"],
+    stations: ["mean", "sum"],
+    visits_perstation: ["mean", "median", "std"]})
+
+    # clean column names, sort resultts
+    summary.columns = ["_".join(col) for col in summary.columns]
+    summary = summary.reset_index()
+    summary = summary.sort_values(by=f"{visits_perstation}_mean", ascending=False)
+    
+    return summary
