@@ -1,5 +1,5 @@
 import pandas as pd
-from src.ertimes.map_viz import create_ed_map
+from ertimes.map_viz import create_ed_map
 
 data = {
     "ed_id": [1,2,3,4],
