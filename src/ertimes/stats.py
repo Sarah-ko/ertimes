@@ -55,6 +55,67 @@ def rank_counties_by_burden(summary: pd.DataFrame) -> pd.DataFrame:
 
     return ranked
 
+
+def rank_hospitals_by_visits_per_station(
+    df: pd.DataFrame,
+    facility_col: str = "FacilityName2",
+    visits_col: str = "Visits_Per_Station",
+    agg: str = "median",
+    top_n: int | None = None,
+) -> pd.DataFrame:
+    """
+    Rank hospitals (facilities) by visits per station.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe containing facility identifier and visits per station.
+    facility_col : str
+        Column name for facility identifier. Default 'FacilityName2'.
+    visits_col : str
+        Column name containing visits-per-station values. Default 'Visits_Per_Station'.
+    agg : str
+        Aggregation to use when there are multiple rows per facility. One of
+        'median' or 'mean'. Default 'median'.
+    top_n : int | None
+        If provided, return only the top_n facilities.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns [facility_col, 'visits_per_station', 'rank'] sorted
+        by 'visits_per_station' descending.
+    """
+
+    if facility_col not in df.columns or visits_col not in df.columns:
+        missing = [c for c in (facility_col, visits_col) if c not in df.columns]
+        raise ValueError(f"Missing required columns: {missing}")
+
+    if agg not in ("median", "mean"):
+        raise ValueError("agg must be 'median' or 'mean'")
+
+    working = df[[facility_col, visits_col]].copy()
+    working[visits_col] = pd.to_numeric(working[visits_col], errors="coerce")
+
+    # Aggregate per facility
+    if agg == "median":
+        grouped = working.groupby(facility_col, dropna=False)[visits_col].median()
+    else:
+        grouped = working.groupby(facility_col, dropna=False)[visits_col].mean()
+
+    result = grouped.reset_index().rename(columns={visits_col: "visits_per_station"})
+
+    # Sort with NaNs last
+    result = result.sort_values(by="visits_per_station", ascending=False, na_position="last").reset_index(drop=True)
+
+    # Add rank (1-based). Ties receive the same rank using dense ranking
+    result["rank"] = result["visits_per_station"].rank(method="dense", ascending=False).astype(int)
+
+    if top_n is not None:
+        result = result.head(top_n).reset_index(drop=True)
+
+    return result
+
 def _bed_size_to_numeric(value: object) -> float:
     if pd.isna(value):
         return np.nan
