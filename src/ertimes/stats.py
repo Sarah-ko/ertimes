@@ -8,8 +8,33 @@ import folium
 
 
 def county_capacity_summary(state: str) -> pd.DataFrame:
+    """
+    Aggregate emergency department capacity metrics at the county level.
+
+    This function downloads ED data for a given state and computes:
+    - total ED visits per county
+    - total ED stations per county
+    - total beds per county (converted to numeric)
+    - visits per station (measure of capacity burden)
+
+    Parameters
+    ----------
+    state : str
+        State name used to download emergency department data.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with one row per county containing summary metrics.
+
+    Raises
+    ------
+    ValueError
+        If required columns are missing from the dataset.
+    """
     df = download_emergency_data(state).copy()
 
+    # Ensure required columns exist before processing
     required_cols = [
         "CountyName",
         "Tot_ED_NmbVsts",
@@ -20,10 +45,14 @@ def county_capacity_summary(state: str) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
+    # Convert key columns to numeric to avoid aggregation errors
     df["Tot_ED_NmbVsts"] = pd.to_numeric(df["Tot_ED_NmbVsts"], errors="coerce")
     df["EDStations"] = pd.to_numeric(df["EDStations"], errors="coerce")
+
+    # Convert bed size categories (e.g., "50-99", "500+") to numeric values
     df["bed_size_numeric"] = df["LICENSED_BED_SIZE"].apply(_bed_size_to_numeric)
 
+    # Aggregate metrics at the county level
     summary = (
         df.groupby("CountyName", dropna=False)
         .agg(
@@ -34,6 +63,7 @@ def county_capacity_summary(state: str) -> pd.DataFrame:
         .reset_index()
     )
 
+    # Calculate visits per station safely (avoid division by zero)
     summary["visits_per_station"] = np.where(
         summary["total_stations"] > 0,
         summary["total_visits"] / summary["total_stations"],
@@ -42,11 +72,38 @@ def county_capacity_summary(state: str) -> pd.DataFrame:
 
     return summary
 
+
 def rank_counties_by_burden(summary: pd.DataFrame) -> pd.DataFrame:
+    """
+    Rank counties by emergency department burden.
+
+    Counties are sorted in descending order of visits per station,
+    where higher values indicate greater strain on ED capacity.
+
+    Parameters
+    ----------
+    summary : pd.DataFrame
+        DataFrame produced by county_capacity_summary, containing
+        'visits_per_station'.
+
+    Returns
+    -------
+    pd.DataFrame
+        Ranked DataFrame sorted by burden (highest first).
+
+    Raises
+    ------
+    ValueError
+        If 'visits_per_station' column is missing.
+    """
+
+    # Ensure required column exists
     if "visits_per_station" not in summary.columns:
         raise ValueError("summary must include 'visits_per_station' column")
 
     ranked = summary.copy()
+
+    # Sort counties by burden (highest first)
     ranked = ranked.sort_values(
         by="visits_per_station",
         ascending=False,
@@ -54,6 +111,46 @@ def rank_counties_by_burden(summary: pd.DataFrame) -> pd.DataFrame:
     ).reset_index(drop=True)
 
     return ranked
+
+def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFrame:
+    """
+    Return a one-row county report from a county summary DataFrame.
+
+    Parameters
+    ----------
+    summary : pd.DataFrame
+        DataFrame containing county-level metrics, such as the output of
+        county_capacity_summary().
+    county_name : str
+        Name of the county to report.
+
+    Returns
+    -------
+    pd.DataFrame
+        One-row DataFrame containing the selected county's summary metrics.
+
+    Raises
+    ------
+    ValueError
+        If required columns are missing or the county is not found.
+    """
+    required_cols = [
+        "CountyName",
+        "total_visits",
+        "total_stations",
+        "total_beds",
+        "visits_per_station",
+    ]
+    missing = [col for col in required_cols if col not in summary.columns]
+    if missing:
+        raise ValueError(f"summary is missing required columns: {missing}")
+
+    report = summary[summary["CountyName"] == county_name].copy()
+
+    if report.empty:
+        raise ValueError(f"No county found with name '{county_name}'")
+
+    return report.reset_index(drop=True)
 
 def _bed_size_to_numeric(value: object) -> float:
     if pd.isna(value):

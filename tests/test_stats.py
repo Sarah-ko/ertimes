@@ -8,6 +8,7 @@ from ertimes import stats
 # Use this clean import now that 'pip install -e .' worked!
 from ertimes.io import download_emergency_data 
 from ertimes.stats import _bed_size_to_numeric, find_capacity_volume_mismatch
+from ertimes.stats import generate_county_report
 
 def test_download_california_data(monkeypatch):
     """
@@ -277,3 +278,33 @@ def test_plot_category_visits(monkeypatch, capsys):
         printed_df.reset_index(drop=True),
         expected_df.reset_index(drop=True)
     )
+
+def test_generate_county_report_basic():
+    summary = pd.DataFrame(
+        {
+            "CountyName": ["Autauga", "Baldwin"],
+            "total_visits": [1000, 2000],
+            "total_stations": [10, 20],
+            "total_beds": [75.0, 125.0],
+            "visits_per_station": [100.0, 100.0],
+        }
+    )
+    result = generate_county_report(summary, "Autauga")
+
+    assert result.shape == (1, 5)
+    assert result.loc[0, "CountyName"] == "Autauga"
+    assert result.loc[0, "total_visits"] == 1000
+
+def test_generate_county_report_missing_county():
+    summary = pd.DataFrame(
+        {
+            "CountyName": ["Autauga", "Baldwin"],
+            "total_visits": [1000, 2000],
+            "total_stations": [10, 20],
+            "total_beds": [75.0, 125.0],
+            "visits_per_station": [100.0, 100.0],
+        }
+    )
+
+    with pytest.raises(ValueError, match="No county found"):
+        generate_county_report(summary, "Fresno")
