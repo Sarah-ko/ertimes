@@ -5,6 +5,8 @@ from ertimes.io import download_emergency_data
 import matplotlib.pyplot as plt
 import seaborn as sns
 import folium
+import os
+from folium.plugins import MarkerCluster
 
 
 def county_capacity_summary(state: str) -> pd.DataFrame:
@@ -526,12 +528,7 @@ def run_er_analysis(df, hospital_name=None):
 
     return df
 
-import os
-import folium
-from folium.plugins import MarkerCluster
-import pandas as pd
-
-
+# Urban vs rural disparity dashboard
 def plot_urban_rural_map(state: str) -> folium.Map:
     """Downloads emergency data for a given state and displays hospital
 
@@ -539,9 +536,11 @@ def plot_urban_rural_map(state: str) -> folium.Map:
 
     Duplicate coordinates are merged to prevent overlapping issues on the map.
     """
+    # Download the dataset
     print(f"Loading/Downloading dataset for state: {state}...")
     df = download_emergency_data(state)
 
+    # Check if required columns exist in the downloaded dataset
     required_cols = ["LATITUDE", "LONGITUDE", "UrbanRuralDesi", "FacilityName2"]
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
@@ -549,8 +548,10 @@ def plot_urban_rural_map(state: str) -> folium.Map:
             f"Downloaded dataset is missing required columns for mapping: {missing}"
         )
 
+    # Drop rows where coordinates are missing
     map_data = df.dropna(subset=["LATITUDE", "LONGITUDE"]).copy()
 
+    # Convert coordinates to numeric, handling errors
     map_data["LATITUDE"] = pd.to_numeric(map_data["LATITUDE"], errors="coerce")
     map_data["LONGITUDE"] = pd.to_numeric(
         map_data["LONGITUDE"], errors="coerce"
@@ -558,7 +559,8 @@ def plot_urban_rural_map(state: str) -> folium.Map:
     map_data = map_data.dropna(subset=["LATITUDE", "LONGITUDE"])
 
     print(f"Total raw hospital records: {len(map_data)}")
-
+    
+    # Group by coordinates and combine hospital names and area types
     map_data = (
         map_data.groupby(["LATITUDE", "LONGITUDE"])
         .agg(
@@ -581,6 +583,7 @@ def plot_urban_rural_map(state: str) -> folium.Map:
         print("Warning: No valid hospital coordinates found to plot.")
         return None
 
+    # Initialize map at the mean center of all hospitals
     center_lat = map_data["LATITUDE"].mean()
     center_lon = map_data["LONGITUDE"].mean()
 
@@ -592,10 +595,12 @@ def plot_urban_rural_map(state: str) -> folium.Map:
         disableClusteringAtZoom=9,  
     ).add_to(m)
 
+     # Iterate through each unique location and add colored markers
     for _, row in map_data.iterrows():
         hospital_names = row["FacilityName2"]
         area_type = str(row["UrbanRuralDesi"]).strip().lower()
-
+        
+        # Assign colors and icons based on Urban/Rural status
         if "urban" in area_type:
             marker_color = "blue"
             marker_icon = "cloud"
@@ -611,7 +616,8 @@ def plot_urban_rural_map(state: str) -> folium.Map:
             popup=f"<b>Hospital(s):</b><br>{hospital_names}<br><b>Type:</b> {row['UrbanRuralDesi']}",
             icon=folium.Icon(color=marker_color, icon=marker_icon),
         ).add_to(marker_cluster)
-
+    
+    # Save the map to an HTML file
     output_dir = "data"
     os.makedirs(output_dir, exist_ok=True)
     output_path = f"{output_dir}/urban_rural_map_{state}.html"
@@ -621,7 +627,7 @@ def plot_urban_rural_map(state: str) -> folium.Map:
 
     return m
 
-
+# Generate HTML file
 if __name__ == "__main__":
     target_state = "california"
     hospital_map = plot_urban_rural_map(target_state)
