@@ -389,12 +389,12 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
     plt.savefig(output_path)
     print(f"\nSuccess: Distribution plot saved to {output_path}")
 
-def year_range(csv_file):
-   df=pd.read_csv(csv_file)
-   earliest_year = df['year'].min()
-   latest_year=df['year'].max()
-   print(year_range('data/Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv'))
-   return "earliest year: " + str(earliest_year), "latest year: " + str(latest_year)
+def year_range(csv_file:str)->tuple[int,int]:
+    df=pd.read_csv(csv_file)
+    if "year" not in df.columns:
+        raise ValueError("CSV must contain a 'year' column")
+    df["year"]=pd.to_numeric(df["year"],errors="coerce")
+    return int(df["year"].min()),int(df["year"].max())
 
 def plot_facility_trend(df: pd.DataFrame, facility_id: str):
     """
