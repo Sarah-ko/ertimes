@@ -389,12 +389,12 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
     plt.savefig(output_path)
     print(f"\nSuccess: Distribution plot saved to {output_path}")
 
-def year_range(csv_file):
-   df=pd.read_csv(csv_file)
-   earliest_year = df['year'].min()
-   latest_year=df['year'].max()
-   print(year_range('data/Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv'))
-   return "earliest year: " + str(earliest_year), "latest year: " + str(latest_year)
+def year_range(csv_file:str)->tuple[int,int]:
+    df=pd.read_csv(csv_file)
+    if "year" not in df.columns:
+        raise ValueError("CSV must contain a 'year' column")
+    df["year"]=pd.to_numeric(df["year"],errors="coerce")
+    return int(df["year"].min()),int(df["year"].max())
 
 def plot_facility_trend(df: pd.DataFrame, facility_id: str):
     """
@@ -734,4 +734,13 @@ def calculate_growth(df, value_col, group_cols, time_col="year", pct=True):
    return df
 
 
-
+def county_facility_counts(df):
+    required=["CountyName","FacilityName2"]
+    missing=[col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+    df=df.copy()
+    df=df.dropna(subset=["CountyName","FacilityName2"])
+    counts=df.groupby("CountyName")["FacilityName2"].nunique().reset_index()
+    counts=counts.rename(columns={"FacilityName2":"facility_count"})
+    return counts.sort_values(by="facility_count",ascending=False).reset_index(drop=True)
