@@ -194,3 +194,20 @@ def test_missing_columns():
 
     with pytest.raises(ValueError):
         stats.plot_facility_trend(df, 'A')
+
+import pandas as pd
+from ertimes.stats import mental_health_shortage_analysis
+
+def test_mental_health_shortage_analysis():
+    data = {
+        'Tot_ED_NmbVsts': [1000, 2000],
+        'EDStations': [10, 20],
+        'MentalHealthShortageArea': ['Yes', 'No']
+    }
+
+    df = pd.DataFrame(data)
+    result = mental_health_shortage_analysis(df)
+
+    assert 'burden_score' in result.columns
+    assert 'high_risk' in result.columns
+    assert result['burden_score'].iloc[0] == 100       
