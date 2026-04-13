@@ -42,9 +42,8 @@ def plot_category_visits(df):
     plt.tight_layout()
     plt.show()
 
-
-# Load data and call function
-ed = pd.read_excel("data/emergency-department-volume-and-capacity-2021-2023.xlsx")
-
-plot_category_visits(ed)
+#load and call the function for this file specifically
+if __name__ == "__main__": #this part is new
+    ed = pd.read_excel("data/emergency-department-volume-and-capacity-2021-2023.xlsx")
+    plot_category_visits(ed)
 
