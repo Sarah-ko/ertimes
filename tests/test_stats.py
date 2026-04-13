@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+import folium
 import matplotlib.pyplot as plt
 
 from ertimes import stats
@@ -368,3 +369,26 @@ def test_calculate_growth_absolute():
     )
 
     assert result.loc[1, "growth"] == 50
+    
+def test_plot_urban_rural_map_runs(monkeypatch):
+    """
+    Verifies that plot_urban_rural_map runs successfully
+    and returns a folium Map object.
+    """
+
+    fake_df = pd.DataFrame({
+        "LATITUDE": [34.1, 35.2],
+        "LONGITUDE": [-118.2, -119.3],
+        "UrbanRuralDesi": ["Urban", "Rural"],
+        "FacilityName2": ["Hospital A", "Hospital B"]
+    })
+
+    def fake_download(state):
+        return fake_df
+
+    monkeypatch.setattr(stats, "download_emergency_data", fake_download)
+
+    result = stats.plot_urban_rural_map("California")
+
+    assert result is not None
+    assert isinstance(result, folium.Map)
