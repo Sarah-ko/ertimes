@@ -351,3 +351,20 @@ def test_get_income_statistics():
     assert stats['median_income'][0] == 36500.0, "Median income should be calculated correctly"
     assert stats['min_income'][0] == 35000, "Minimum income should be calculated correctly"
     assert stats['max_income'][0] == 38000, "Maximum income should be calculated correctly"
+
+#testing non percent growth 
+def test_calculate_growth_absolute():
+    df = pd.DataFrame({
+        "oshpd_id": [1, 1],
+        "year": [2020, 2021],
+        "Tot_ED_NmbVsts": [200, 250]
+    })
+
+    result = stats.calculate_growth(
+        df,
+        value_col="Tot_ED_NmbVsts",
+        group_cols=["oshpd_id"],
+        pct=False
+    )
+
+    assert result.loc[1, "growth"] == 50
