@@ -29,12 +29,13 @@ def download_emergency_data(state: str) -> pd.DataFrame:
     return df
 
 
+<<<<<<< HEAD
 def load_emergency_data(filepath: str) -> pd.DataFrame:
     """Load and clean emergency department data from a CSV file."""
     df = pd.read_csv(filepath)
     df = clean_data(df)
     return df
-
+=======
 def test_data_reading(state: str):
     """
     Tests if the data from the URL is correctly read into a DataFrame.
@@ -58,4 +59,8 @@ def test_data_reading(state: str):
     except Exception as e:
         print(f"✗ Failed to read data: {e}")
         return False
-
+if __name__ == "__main__":
+    test_data_reading("california")
+if __name__ == "__main__":
+    test_data_reading("california")
+>>>>>>> dabf5752ae9cb14f967683c57359be2ba2e4495e
