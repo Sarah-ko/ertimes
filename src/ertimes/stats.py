@@ -734,4 +734,13 @@ def calculate_growth(df, value_col, group_cols, time_col="year", pct=True):
    return df
 
 
-
+def county_facility_counts(df):
+    required=["CountyName","FacilityName2"]
+    missing=[col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+    df=df.copy()
+    df=df.dropna(subset=["CountyName","FacilityName2"])
+    counts=df.groupby("CountyName")["FacilityName2"].nunique().reset_index()
+    counts=counts.rename(columns={"FacilityName2":"facility_count"})
+    return counts.sort_values(by="facility_count",ascending=False).reset_index(drop=True)
