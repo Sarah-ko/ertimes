@@ -366,7 +366,25 @@ def find_duplicates(
 
 def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'HospitalOwnership'):
     """
-    Prepares and cleans emergency department data for load distribution analysis.
+    Generates a statistical distribution plot of ED visits per station.
+
+    This function cleans the input data by removing records with missing values 
+    in the analysis columns, calculates the mean visits per station for the 
+    specified grouping, and produces a boxplot to visualize data spread and outliers.
+
+    Args:
+        df (pd.DataFrame): The Emergency Department dataset containing 
+            'Visits_Per_Station' and the specified grouping column.
+        group_col (str, optional): The categorical column used to group the 
+            hospitals. Defaults to 'HospitalOwnership'.
+
+    Returns:
+        tuple: A tuple containing:
+            - clean_df (pd.DataFrame): The filtered DataFrame used for the plot.
+            - avg_load (pd.Series): The calculated mean values sorted descending.
+            
+    Raises:
+        KeyError: If 'Visits_Per_Station' or group_col are missing from the DataFrame.
     """
     clean_df = df.dropna(subset=['Visits_Per_Station', group_col]).copy()
     
