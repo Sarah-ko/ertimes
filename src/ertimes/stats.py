@@ -501,42 +501,61 @@ def per_category_burden_report(df, top_n=3):
 
 def run_er_analysis(df, hospital_name=None):
     """
-    Minimal ER analysis:
+    ER analysis:
     - Compute year-over-year (YoY) changes
     - Use visits per station as a proxy for utilization
     - Detect mismatches between demand and capacity
     - Generate simple visualizations
     """
 
+    # Sort for correct time-series operations
     df = df.sort_values(["oshpd_id", "year"]).copy()
 
-    df["YoY_Visits"] = df.groupby("oshpd_id")["Tot_ED_NmbVsts"].pct_change()
+    # Year-over-year visits change
+    df["YoY_Visits"] = (
+    df.groupby("oshpd_id")["Tot_ED_NmbVsts"]
+    .transform(lambda x: x.ffill().pct_change())
+)
 
+    # Utilization proxy
     df["Utilization"] = df["Visits_Per_Station"]
 
-    df["Utilization_change"] = df.groupby("oshpd_id")["Utilization"].pct_change(fill_method=None)
+    # FIX: remove deprecated fill_method argument
+    df["Utilization_change"] = (
+    df.groupby("oshpd_id")["Utilization"]
+    .transform(lambda x: x.ffill().pct_change())
+)
 
+    # Detect mismatch: demand ↑ but utilization not ↑
     df["Mismatch"] = (
         (df["YoY_Visits"] > 0) & (df["Utilization_change"] <= 0)
     )
 
+    # --- Visualization 1: Capacity vs Demand ---
     plt.figure()
     plt.scatter(df["Visits_Per_Station"], df["Tot_ED_NmbVsts"])
     plt.xlabel("Capacity (Visits per Station)")
     plt.ylabel("Demand (Total Visits)")
     plt.title("Capacity vs Demand")
+    plt.tight_layout()
     plt.show()
 
+    # --- Visualization 2: Specific hospital trend ---
     if hospital_name:
         data = df[df["FacilityName2"] == hospital_name]
 
-        plt.figure()
-        plt.plot(data["year"], data["Tot_ED_NmbVsts"], marker="o")
-        plt.title(f"ER Visits Trend - {hospital_name}")
-        plt.xlabel("Year")
-        plt.ylabel("Visits")
-        plt.show()
+        if not data.empty:
+            plt.figure()
+            plt.plot(data["year"], data["Tot_ED_NmbVsts"], marker="o")
+            plt.title(f"ER Visits Trend - {hospital_name}")
+            plt.xlabel("Year")
+            plt.ylabel("Visits")
+            plt.tight_layout()
+            plt.show()
+        else:
+            print(f"[Warning] No data found for hospital: {hospital_name}")
 
+    # --- Visualization 3: Average YoY trend ---
     yoy = df.groupby("year")["YoY_Visits"].mean()
 
     plt.figure()
@@ -544,6 +563,7 @@ def run_er_analysis(df, hospital_name=None):
     plt.title("Average Year-over-Year Change in ER Visits")
     plt.xlabel("Year")
     plt.ylabel("YoY Change")
+    plt.tight_layout()
     plt.show()
 
     return df
