@@ -11,6 +11,7 @@ from ertimes import stats
 from ertimes.io import download_emergency_data 
 from ertimes.stats import _bed_size_to_numeric, find_capacity_volume_mismatch
 from ertimes.stats import generate_county_report
+from ertimes.stats import compute_capacity_pressure_score, spike_frequency_pivot
 
 def test_download_california_data(monkeypatch):
     """
@@ -329,7 +330,7 @@ def test_generate_county_report_missing_county():
 
 
 #Median_Income Tests
-from src.ertimes.Median_income import load_california_income_data, get_income_by_zip, get_income_statistics
+from ertimes.Median_income import load_california_income_data, get_income_by_zip, get_income_statistics
 
 
 def test_load_california_income_data():
@@ -427,3 +428,92 @@ def test_run_er_analysis():
     assert "YoY_Visits" in result.columns
     assert "Utilization" in result.columns
     assert "Mismatch" in result.columns
+# compute_capacity_pressure_score tests
+def make_df(facilities: list[dict]) -> pd.DataFrame:
+    """Build a test DataFrame from a list of facility dicts."""
+    defaults = {
+        'PrimaryCareShortageArea':  'No',
+        'MentalHealthShortageArea': 'No',
+        'Visits_Per_Station':       100.0,
+        'LICENSED_BED_SIZE':        '200-299',
+    }
+    rows = [{**defaults, **f} for f in facilities]
+    return pd.DataFrame(rows)
+
+def score(df):
+    return compute_capacity_pressure_score(df).set_index('FacilityName2')['capacity_pressure_score']
+
+@pytest.fixture
+def two_hospitals():
+    return make_df([
+        {'FacilityName2': 'High', 'Visits_Per_Station': 1000.0, 'PrimaryCareShortageArea': 'Yes', 'MentalHealthShortageArea': 'Yes', 'LICENSED_BED_SIZE': '1-49'},
+        {'FacilityName2': 'Low',  'Visits_Per_Station': 10.0},
+    ])
+
+
+def test_score_bounds(two_hospitals):
+    s = score(two_hospitals)
+    assert s.between(1, 10).all()
+
+def test_score_is_numeric(two_hospitals):
+    assert pd.api.types.is_numeric_dtype(score(two_hospitals))
+
+def test_output_columns(two_hospitals):
+    result = compute_capacity_pressure_score(two_hospitals)
+    assert list(result.columns) == ['FacilityName2', 'capacity_pressure_score']
+
+def test_sorted_descending(two_hospitals):
+    s = compute_capacity_pressure_score(two_hospitals)['capacity_pressure_score'].tolist()
+    assert s == sorted(s, reverse=True)
+
+def test_one_row_per_facility():
+    df = make_df([{'FacilityName2': 'A'}, {'FacilityName2': 'A'}])
+    assert len(compute_capacity_pressure_score(df)) == 1
+
+def test_high_utilization_scores_higher(two_hospitals):
+    s = score(two_hospitals)
+    assert s['High'] > s['Low']
+
+def test_shortage_increases_score():
+    df = make_df([{'FacilityName2': 'Shortage', 'PrimaryCareShortageArea': 'Yes', 'MentalHealthShortageArea': 'Yes'},
+                  {'FacilityName2': 'None'}])
+    s = score(df)
+    assert s['Shortage'] > s['None']
+
+def test_smaller_bed_size_increases_score():
+    df = make_df([{'FacilityName2': 'Small', 'LICENSED_BED_SIZE': '1-49'},
+                  {'FacilityName2': 'Large', 'LICENSED_BED_SIZE': '500+'}])
+    s = score(df)
+    assert s['Small'] > s['Large']
+
+def test_zero_visits_no_nan():
+    df = make_df([{'FacilityName2': 'A', 'Visits_Per_Station': 0.0}])
+    assert not score(df).isna().any()
+
+def test_smoke_real_data():
+    df = pd.read_csv('data/Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv')
+    assert not score(df).isna().any()
+
+
+def make_pivot_test_df(records: list[dict]) -> pd.DataFrame:
+    """Build a test DataFrame from a list of row dicts."""
+    defaults = {
+        'FacilityName2':      'Test Hospital',
+        'Category':           'All ED Visits',
+        'year':               2021,
+        'Visits_Per_Station': 100.0,
+    }
+    return pd.DataFrame([{**defaults, **r} for r in records])
+
+def test_multiple_facilities_spikes_summed():
+    """
+    Main test for spike_frequency_pivot
+
+    Spikes across two facilities in the same category should be summed."""
+    df = make_pivot_test_df([
+        {'FacilityName2': 'Hospital A', 'year': 2021, 'Visits_Per_Station': 100},
+        {'FacilityName2': 'Hospital A', 'year': 2022, 'Visits_Per_Station': 200},
+        {'FacilityName2': 'Hospital B', 'year': 2021, 'Visits_Per_Station': 100},
+        {'FacilityName2': 'Hospital B', 'year': 2022, 'Visits_Per_Station': 200},
+    ])
+    assert spike_frequency_pivot(df).loc['All ED Visits', 'spike_count'] == 2

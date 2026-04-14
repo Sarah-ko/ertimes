@@ -385,6 +385,7 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
             
     Raises:
         KeyError: If 'Visits_Per_Station' or group_col are missing from the DataFrame.
+    Prepares and cleans emergency department data for load distribution analysis.
     """
     clean_df = df.dropna(subset=['Visits_Per_Station', group_col]).copy()
     
@@ -456,8 +457,6 @@ def plot_facility_trend(df: pd.DataFrame, facility_id: str):
     plt.tight_layout()
 
     return plt.gcf()
-
-
 
 import pandas as pd
 
@@ -568,6 +567,12 @@ def run_er_analysis(df, hospital_name=None):
 
     return df
 
+
+import os
+import folium
+from folium.plugins import MarkerCluster
+import pandas as pd
+
 # Urban vs rural disparity dashboard
 def plot_urban_rural_map(state: str) -> folium.Map:
     """Downloads emergency data for a given state and displays hospital
@@ -641,6 +646,7 @@ def plot_urban_rural_map(state: str) -> folium.Map:
         area_type = str(row["UrbanRuralDesi"]).strip().lower()
         
         # Assign colors and icons based on Urban/Rural status
+
         if "urban" in area_type:
             marker_color = "blue"
             marker_icon = "cloud"
@@ -668,35 +674,27 @@ def plot_urban_rural_map(state: str) -> folium.Map:
     return m
 
 # Generate HTML file
+
 if __name__ == "__main__":
     target_state = "california"
     hospital_map = plot_urban_rural_map(target_state)
 
 def mental_health_shortage_analysis(df):
-
-    """
-    This function highlights facilities that experience both an above-average burden (namely, a higher-than-normal demand relative to available resources) and a shortage of mental health resources, identifying them at high-risk.
-    """
-
-    # Creates a copy to prevent modifying original dataframe
     df = df.copy()
 
-    # Converts to numeric using the cleaned column names
-    df['tot_ed_nmb_vsts'] = pd.to_numeric(df['tot_ed_nmb_vsts'], errors='coerce')
-    df['ed_stations'] = pd.to_numeric(df['ed_stations'], errors='coerce').replace(0, 0.0001)
+    df['Tot_ED_NmbVsts'] = pd.to_numeric(df['Tot_ED_NmbVsts'], errors='coerce')
+    df['EDStations'] = pd.to_numeric(df['EDStations'], errors='coerce')
 
-    # Calculates burden (# of visits/# of ED stations) + finds the burden average
-    df['burden_score'] = df['tot_ed_nmb_vsts'] / df['ed_stations']
+    df['EDStations'] = df['EDStations'].replace(0, 0.0001)
+
+    df['burden_score'] = df['Tot_ED_NmbVsts'] / df['EDStations']
+
     avg_burden = df['burden_score'].mean()
 
-    # Identifies + filters high-risk areas, where high risk is defined as a facility being classified as a "mental health shortage area" and the burden score being above-average (namely, higher than the mean burden score for the data set)
     df['high_risk'] = (
-        (df['mental_health_shortage_area'] == 'Yes') & 
+        (df['MentalHealthShortageArea'] == 'Yes') &
         (df['burden_score'] > avg_burden)
     )
-    
-    # Returns the facilities that are high risk
-    return df[df['high_risk'] == True]
 
     return df
 
@@ -707,6 +705,7 @@ def summarize_by_ownership(df,
     stations="EDStations",
     visits_perstation="Visits_Per_Station"):
     """
+    group hospitals by ownership type and compute summary statistics for burden, volume, & capacity insight
     group hospitals by ownership type and compute summary statistics for burden, volume, & capacity insights
    
     parameters needed:
@@ -716,6 +715,9 @@ def summarize_by_ownership(df,
     visits_perstation: column name representing number of visits per station in a facility
       """
     #ensure all required columns exist, raise column specific error if not
+    ""
+
+
     required = [ownership_type, total_visits, stations, visits_perstation]
     missing = [col for col in required if col not in df.columns]
     if missing:
@@ -727,16 +729,20 @@ def summarize_by_ownership(df,
     df[stations] = pd.to_numeric(df[stations], errors="coerce")
     df[visits_perstation] = pd.to_numeric(df[visits_perstation], errors="coerce")
     #drop observations that are missing ownership type (our parameter of interest for grouping)
+
     df = df.dropna(subset=[ownership_type])
     #group by different types of ownership, compute summary statistics 
+
     summary = df.groupby(ownership_type).agg({
     total_visits: ["mean", "sum"], #volume metric
     stations: ["mean", "sum"], #capacity metric
     visits_perstation: ["mean", "median", "std"]}) #burden metric
     #flattens column names & resets to have ownership type column 
+
     summary.columns = ["_".join(col) for col in summary.columns]
     summary = summary.reset_index()
     #return columns sorted by average efficiency in descending order
+
     summary = summary.sort_values(by=f"{visits_perstation}_mean", ascending=False)
     
     #output final summary
@@ -806,3 +812,44 @@ def county_facility_counts(df,county_col="CountyName",facility_col="FacilityName
     counts=df.groupby(county_col)[facility_col].nunique().reset_index()
     counts=counts.rename(columns={facility_col:"facility_count"})
     return counts.sort_values(by="facility_count",ascending=False).reset_index(drop=True)
+
+
+def spike_frequency_pivot(
+    df: pd.DataFrame,
+    threshold_pct: float = 20.0
+) -> pd.DataFrame:
+    """
+    Builds a pivot table of spike frequency aggregated by category.
+
+    A spike is a year-over-year increase in Visits_Per_Station that
+    meets or exceeds threshold_pct for a given facility + category.
+
+    Parameters:
+        df            : Raw hospital DataFrame
+        threshold_pct : Minimum % YoY increase to count as a spike
+
+    Returns:
+        Pivot table with Category as index and 'spike_count' as column,
+        sorted by spike frequency descending.
+    """
+
+    # --- 1. Compute year-over-year % change per facility + category ---
+    df = df.copy()
+
+    df['yoy_pct_change'] = (
+        df.sort_values('year')
+          .groupby(['FacilityName2', 'Category'])['Visits_Per_Station']
+          .pct_change() * 100
+    )
+
+    # --- 2. Flag spikes ---
+    df['is_spike'] = (df['yoy_pct_change'] >= threshold_pct).astype(int)
+
+    # --- 3. Pivot: rows = Category, value = total spike count ---
+    pivot = df.pivot_table(
+        index='Category',
+        values='is_spike',
+        aggfunc='sum'
+    ).rename(columns={'is_spike': 'spike_count'})
+
+    return pivot.sort_values('spike_count', ascending=False)
