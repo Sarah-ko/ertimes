@@ -329,7 +329,7 @@ def test_generate_county_report_missing_county():
 
 
 #Median_Income Tests
-from src.ertimes.Median_income import load_california_income_data, get_income_by_zip, get_income_statistics
+from ertimes.Median_income import load_california_income_data, get_income_by_zip, get_income_statistics
 
 
 def test_load_california_income_data():
@@ -423,6 +423,14 @@ def make_df(facilities: list[dict]) -> pd.DataFrame:
 
 def score(df):
     return compute_capacity_pressure_score(df).set_index('FacilityName2')['capacity_pressure_score']
+
+@pytest.fixture
+def two_hospitals():
+    return make_df([
+        {'FacilityName2': 'High', 'Visits_Per_Station': 1000.0, 'PrimaryCareShortageArea': 'Yes', 'MentalHealthShortageArea': 'Yes', 'LICENSED_BED_SIZE': '1-49'},
+        {'FacilityName2': 'Low',  'Visits_Per_Station': 10.0},
+    ])
+
 
 def test_score_bounds(two_hospitals):
     s = score(two_hospitals)
