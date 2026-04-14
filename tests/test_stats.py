@@ -3,6 +3,7 @@ import pandas as pd
 import pytest
 import folium
 import matplotlib.pyplot as plt
+import sys
 
 from ertimes import stats
 
@@ -409,6 +410,24 @@ def test_plot_urban_rural_map_runs(monkeypatch):
 
     assert result is not None
     assert isinstance(result, folium.Map)
+
+
+sys.path.append("src")
+
+from ertimes.stats import run_er_analysis
+
+def test_run_er_analysis():
+    # load data
+    df = pd.read_excel("data/emergency-department-volume-and-capacity-2021-2023.xlsx")
+
+    # run function
+    result = run_er_analysis(df)
+
+    # basic checks
+    assert isinstance(result, pd.DataFrame)
+    assert "YoY_Visits" in result.columns
+    assert "Utilization" in result.columns
+    assert "Mismatch" in result.columns
 # compute_capacity_pressure_score tests
 def make_df(facilities: list[dict]) -> pd.DataFrame:
     """Build a test DataFrame from a list of facility dicts."""
