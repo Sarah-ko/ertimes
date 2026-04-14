@@ -457,6 +457,8 @@ def plot_facility_trend(df: pd.DataFrame, facility_id: str):
 
     return plt.gcf()
 
+
+
 import pandas as pd
 
 def per_category_burden_report(df, top_n=3):
@@ -651,21 +653,30 @@ if __name__ == "__main__":
     hospital_map = plot_urban_rural_map(target_state)
 
 def mental_health_shortage_analysis(df):
+
+    """
+    This function highlights facilities that experience both an above-average burden (namely, a higher-than-normal demand relative to available resources) and a shortage of mental health resources, identifying them at high-risk.
+    """
+
+    # Creates a copy to prevent modifying original dataframe
     df = df.copy()
 
-    df['Tot_ED_NmbVsts'] = pd.to_numeric(df['Tot_ED_NmbVsts'], errors='coerce')
-    df['EDStations'] = pd.to_numeric(df['EDStations'], errors='coerce')
+    # Converts to numeric using the cleaned column names
+    df['tot_ed_nmb_vsts'] = pd.to_numeric(df['tot_ed_nmb_vsts'], errors='coerce')
+    df['ed_stations'] = pd.to_numeric(df['ed_stations'], errors='coerce').replace(0, 0.0001)
 
-    df['EDStations'] = df['EDStations'].replace(0, 0.0001)
-
-    df['burden_score'] = df['Tot_ED_NmbVsts'] / df['EDStations']
-
+    # Calculates burden (# of visits/# of ED stations) + finds the burden average
+    df['burden_score'] = df['tot_ed_nmb_vsts'] / df['ed_stations']
     avg_burden = df['burden_score'].mean()
 
+    # Identifies + filters high-risk areas, where high risk is defined as a facility being classified as a "mental health shortage area" and the burden score being above-average (namely, higher than the mean burden score for the data set)
     df['high_risk'] = (
-        (df['MentalHealthShortageArea'] == 'Yes') &
+        (df['mental_health_shortage_area'] == 'Yes') & 
         (df['burden_score'] > avg_burden)
     )
+    
+    # Returns the facilities that are high risk
+    return df[df['high_risk'] == True]
 
     return df
 
