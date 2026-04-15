@@ -387,11 +387,14 @@ def test_calculate_growth_absolute():
     )
 
     assert result.loc[1, "growth"] == 50
-    
+
+# Test for plot_urban_rural_map() function
 def test_plot_urban_rural_map_runs(monkeypatch):
     """
     Verifies that plot_urban_rural_map runs successfully
     and returns a folium Map object.
+
+    The map need to be manually opened.
     """
 
     fake_df = pd.DataFrame({
@@ -412,23 +415,7 @@ def test_plot_urban_rural_map_runs(monkeypatch):
     assert isinstance(result, folium.Map)
 
 
-sys.path.append("src")
-
-from ertimes.stats import run_er_analysis
-
-def test_run_er_analysis():
-    # load data
-    df = pd.read_excel("data/emergency-department-volume-and-capacity-2021-2023.xlsx")
-
-    # run function
-    result = run_er_analysis(df)
-
-    # basic checks
-    assert isinstance(result, pd.DataFrame)
-    assert "YoY_Visits" in result.columns
-    assert "Utilization" in result.columns
-    assert "Mismatch" in result.columns
-# compute_capacity_pressure_score tests
+# Compute_capacity_pressure_score tests
 def make_df(facilities: list[dict]) -> pd.DataFrame:
     """Build a test DataFrame from a list of facility dicts."""
     defaults = {
@@ -541,7 +528,7 @@ def test_run_er_analysis(monkeypatch):
     monkeypatch.setattr(stats, "download_emergency_data", fake_download)
 
     df = fake_download()
-    result = stats.run_er_analysis(df, plot=False)
+    result = stats.run_er_analysis(df)
 
     # checks
     assert isinstance(result, pd.DataFrame)
