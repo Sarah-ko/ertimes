@@ -517,3 +517,34 @@ def test_multiple_facilities_spikes_summed():
         {'FacilityName2': 'Hospital B', 'year': 2022, 'Visits_Per_Station': 200},
     ])
     assert spike_frequency_pivot(df).loc['All ED Visits', 'spike_count'] == 2
+
+import sys
+
+
+sys.path.append("src")
+
+import ertimes.stats as stats
+
+
+def fake_download():
+    return pd.DataFrame({
+        "oshpd_id": [1, 1, 2, 2],
+        "year": [2021, 2022, 2021, 2022],
+        "Tot_ED_NmbVsts": [100, 120, 200, 210],
+        "Visits_Per_Station": [10, 12, 20, 21],
+        "FacilityName2": ["A", "A", "B", "B"]
+    })
+
+
+def test_run_er_analysis(monkeypatch):
+ 
+    monkeypatch.setattr(stats, "download_emergency_data", fake_download)
+
+    df = fake_download()
+    result = stats.run_er_analysis(df, plot=False)
+
+    # checks
+    assert isinstance(result, pd.DataFrame)
+    assert "YoY_Visits" in result.columns
+    assert "Utilization" in result.columns
+    assert "Mismatch" in result.columns
