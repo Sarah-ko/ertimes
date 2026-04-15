@@ -758,6 +758,7 @@ def calculate_growth(df, value_col, group_cols, time_col="year", pct=True):
    return df
 
 
+<<<<<<< HEAD
 def county_facility_counts(csv_file, county_col="CountyName", facility_col="FacilityName2"):
     df = pd.read_csv(csv_file)
     
@@ -772,3 +773,15 @@ def county_facility_counts(csv_file, county_col="CountyName", facility_col="Faci
     counts = counts.rename(columns={facility_col: "facility_count"})
     
     return counts.sort_values(by="facility_count", ascending=False).reset_index(drop=True)
+=======
+def county_facility_counts(df,county_col="CountyName",facility_col="FacilityName2"):
+    required=[county_col,facility_col]
+    missing=[col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+    df=df.copy()
+    df=df.dropna(subset=[county_col,facility_col])
+    counts=df.groupby(county_col)[facility_col].nunique().reset_index()
+    counts=counts.rename(columns={facility_col:"facility_count"})
+    return counts.sort_values(by="facility_count",ascending=False).reset_index(drop=True)
+>>>>>>> 553295c87be3bd7996a2463228e77abde67d2d77
