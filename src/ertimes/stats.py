@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import folium
 import os
+from pathlib import Path
 from folium.plugins import MarkerCluster
 
 
@@ -364,7 +365,7 @@ def find_duplicates(
 
     return duplicates
 
-def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'HospitalOwnership'):
+def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'HospitalOwnership', output_dir: str = 'data'):
     """
     Generates a statistical distribution plot of ED visits per station.
 
@@ -377,6 +378,7 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
             'Visits_Per_Station' and the specified grouping column.
         group_col (str, optional): The categorical column used to group the 
             hospitals. Defaults to 'HospitalOwnership'.
+        output_dir (str, optional): Directory to save output files. Defaults to 'data'.
 
     Returns:
         tuple: A tuple containing:
@@ -398,7 +400,7 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
     print(f"\n--- Statistical Summary: Mean Visits per Station by {group_col} ---")
     print(avg_load.head())
     
-    plt.figure(figsize=(12, 6))
+    fig = plt.figure(figsize=(12, 6))
     sns.boxplot(data=clean_df, x=group_col, y='Visits_Per_Station', palette="viridis")
     
     plt.title(f'Distribution of ED Visits per Station by {group_col}')
@@ -406,9 +408,21 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
     plt.ylabel('Visits per Station')
     plt.tight_layout()
     
-    output_path = f"data/load_distribution_{group_col}.png"
-    plt.savefig(output_path)
-    print(f"\nSuccess: Distribution plot saved to {output_path}")
+    # Create output directory with proper error handling
+    output_path = Path(output_dir) / f"load_distribution_{group_col}.png"
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(output_path)
+        plt.close(fig)  # Close figure to prevent memory leak
+        print(f"\nSuccess: Distribution plot saved to {output_path}")
+    except PermissionError as e:
+        print(f"Error: Permission denied when creating directory or saving file: {e}")
+        plt.close(fig)
+        raise
+    except Exception as e:
+        print(f"Error: Failed to save plot: {e}")
+        plt.close(fig)
+        raise
 
 def year_range(csv_file:str)->tuple[int,int]:
     df=pd.read_csv(csv_file)
@@ -531,39 +545,42 @@ def run_er_analysis(df, hospital_name=None):
     )
 
     # --- Visualization 1: Capacity vs Demand ---
-    plt.figure()
+    fig1 = plt.figure()
     plt.scatter(df["Visits_Per_Station"], df["Tot_ED_NmbVsts"])
     plt.xlabel("Capacity (Visits per Station)")
     plt.ylabel("Demand (Total Visits)")
     plt.title("Capacity vs Demand")
     plt.tight_layout()
     plt.show()
+    plt.close(fig1)  # Close figure to prevent memory leak
 
     # --- Visualization 2: Specific hospital trend ---
     if hospital_name:
         data = df[df["FacilityName2"] == hospital_name]
 
         if not data.empty:
-            plt.figure()
+            fig2 = plt.figure()
             plt.plot(data["year"], data["Tot_ED_NmbVsts"], marker="o")
             plt.title(f"ER Visits Trend - {hospital_name}")
             plt.xlabel("Year")
             plt.ylabel("Visits")
             plt.tight_layout()
             plt.show()
+            plt.close(fig2)  # Close figure to prevent memory leak
         else:
             print(f"[Warning] No data found for hospital: {hospital_name}")
 
     # --- Visualization 3: Average YoY trend ---
     yoy = df.groupby("year")["YoY_Visits"].mean()
 
-    plt.figure()
+    fig3 = plt.figure()
     yoy.plot(marker="o")
     plt.title("Average Year-over-Year Change in ER Visits")
     plt.xlabel("Year")
     plt.ylabel("YoY Change")
     plt.tight_layout()
     plt.show()
+    plt.close(fig3)  # Close figure to prevent memory leak
 
     return df
 
@@ -664,12 +681,18 @@ def plot_urban_rural_map(state: str) -> folium.Map:
         ).add_to(marker_cluster)
     
     # Save the map to an HTML file
-    output_dir = "data"
-    os.makedirs(output_dir, exist_ok=True)
-    output_path = f"{output_dir}/urban_rural_map_{state}.html"
-
-    m.save(output_path)
-    print(f"\nSuccess: Map saved to {output_path}")
+    output_dir = Path("data")
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / f"urban_rural_map_{state}.html"
+        m.save(str(output_path))
+        print(f"\nSuccess: Map saved to {output_path}")
+    except PermissionError as e:
+        print(f"Error: Permission denied when creating directory or saving file: {e}")
+        raise
+    except Exception as e:
+        print(f"Error: Failed to save map: {e}")
+        raise
 
     return m
 
