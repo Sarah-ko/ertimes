@@ -673,11 +673,6 @@ def plot_urban_rural_map(state: str) -> folium.Map:
 
     return m
 
-# Generate HTML file
-
-if __name__ == "__main__":
-    target_state = "california"
-    hospital_map = plot_urban_rural_map(target_state)
 
 def mental_health_shortage_analysis(df):
     df = df.copy()
