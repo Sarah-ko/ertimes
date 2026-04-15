@@ -308,3 +308,46 @@ def test_generate_county_report_missing_county():
 
     with pytest.raises(ValueError, match="No county found"):
         generate_county_report(summary, "Fresno")
+
+
+#Median_Income Tests
+from src.ertimes.Median_income import load_california_income_data, get_income_by_zip, get_income_statistics
+
+
+def test_load_california_income_data():
+    # Test loading data from a valid file
+    df = load_california_income_data('data/california_median_income_by_zipcode.csv')
+    assert not df.empty, "DataFrame should not be empty"
+    assert 'zip_code' in df.columns, "DataFrame should contain 'zip_code' column"
+    assert 'median_income' in df.columns, "DataFrame should contain 'median_income' column"
+
+
+def test_get_income_by_zip():
+    # Sample DataFrame for testing
+    sample_data = {
+        'zip_code': ['90001', '90002'],
+        'median_income': [35000, 38000],
+        'county': ['Los Angeles', 'Los Angeles'],
+        'city': ['Los Angeles', 'Los Angeles']
+    }
+    df = pd.DataFrame(sample_data)
+    result = get_income_by_zip(df, '90001')
+    assert result['zip_code'] == '90001', "Should return correct zip code"
+    assert result['median_income'] == 35000, "Should return correct median income"
+    assert result['county'] == 'Los Angeles', "Should return correct county"
+
+
+def test_get_income_statistics():
+    # Sample DataFrame for testing
+    sample_data = {
+        'zip_code': ['90001', '90002'],
+        'median_income': [35000, 38000],
+        'county': ['Los Angeles', 'Los Angeles'],
+        'city': ['Los Angeles', 'Los Angeles']
+    }
+    df = pd.DataFrame(sample_data)
+    stats = get_income_statistics(df)
+    assert stats['mean_income'][0] == 36500.0, "Mean income should be calculated correctly"
+    assert stats['median_income'][0] == 36500.0, "Median income should be calculated correctly"
+    assert stats['min_income'][0] == 35000, "Minimum income should be calculated correctly"
+    assert stats['max_income'][0] == 38000, "Maximum income should be calculated correctly"
