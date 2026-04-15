@@ -389,37 +389,52 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
         KeyError: If 'Visits_Per_Station' or group_col are missing from the DataFrame.
     Prepares and cleans emergency department data for load distribution analysis.
     """
+    # 1. Data Cleaning: Remove rows where essential metrics or grouping labels are missing.
+    # Using .copy() ensures we don't accidentally modify the original source DataFrame.
     clean_df = df.dropna(subset=['Visits_Per_Station', group_col]).copy()
     
+    # 2. Validation: Check if the resulting dataset is empty. 
+    # This prevents the program from crashing during plotting if no valid data exists.
     if clean_df.empty:
         print(f"Warning: No valid data available for {group_col}.")
         return None
     
+    # 3. Numerical Computing: Aggregate data to find the average visit burden per category.
+    # Sorting descending provides an immediate insight into which categories have the highest load.
     avg_load = clean_df.groupby(group_col)['Visits_Per_Station'].mean().sort_values(ascending=False)
     
     print(f"\n--- Statistical Summary: Mean Visits per Station by {group_col} ---")
     print(avg_load.head())
     
+    # 4. Visualization: Initialize a figure and generate a Seaborn boxplot.
+    # Boxplots are chosen over simple bar charts because they visualize the full distribution,
+    # including the median, quartiles, and outliers within each hospital category.
     fig = plt.figure(figsize=(12, 6))
     sns.boxplot(data=clean_df, x=group_col, y='Visits_Per_Station', palette="viridis")
     
+    # 5. Aesthetic Polishing: Set titles, labels, and rotate x-axis text for readability.
+    # Tight_layout is used to ensure labels do not get cut off when the image is saved.
     plt.title(f'Distribution of ED Visits per Station by {group_col}')
     plt.xticks(rotation=45)
     plt.ylabel('Visits per Station')
     plt.tight_layout()
     
-    # Create output directory with proper error handling
+    # 6. File I/O & Error Handling: Construct path and save the image safely.
+    # Using Path objects handles slashes correctly across different operating systems.
     output_path = Path(output_dir) / f"load_distribution_{group_col}.png"
     try:
+        # Ensure the target directory exists (mkdir) before attempting to write the file.
         output_path.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(output_path)
-        plt.close(fig)  # Close figure to prevent memory leak
+        plt.close(fig)  # Explicitly close the figure to free up system memory after the file is saved.
         print(f"\nSuccess: Distribution plot saved to {output_path}")
     except PermissionError as e:
+        # Handle cases where the data folder is locked or read-only.
         print(f"Error: Permission denied when creating directory or saving file: {e}")
         plt.close(fig)
         raise
     except Exception as e:
+        # Catch-all for other I/O issues (e.g., disk full) to provide a clear error message.
         print(f"Error: Failed to save plot: {e}")
         plt.close(fig)
         raise
