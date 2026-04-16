@@ -517,3 +517,83 @@ def test_multiple_facilities_spikes_summed():
         {'FacilityName2': 'Hospital B', 'year': 2022, 'Visits_Per_Station': 200},
     ])
     assert spike_frequency_pivot(df).loc['All ED Visits', 'spike_count'] == 2
+
+#pytests for summarize_by_ownership function
+from ertimes.stats import summarize_by_ownership 
+
+def test_basic_summary():
+    """Test correct aggregation on simple dataset by comparing actual result v expected"""
+
+    df = pd.DataFrame({
+        "HospitalOwnership": ["A", "A", "B", "B"],
+        "Tot_ED_NmbVsts": [100, 200, 300, 400],
+        "EDStations": [10, 20, 30, 40],
+        "Visits_Per_Station": [10, 10, 10, 10]
+    })
+
+    result = summarize_by_ownership(df)
+
+    expected = pd.DataFrame({
+        "HospitalOwnership": ["A", "B"],
+        "Tot_ED_NmbVsts_mean": [150.0, 350.0],
+        "Tot_ED_NmbVsts_sum": [300, 700],
+        "EDStations_mean": [15.0, 35.0],
+        "EDStations_sum": [30, 70],
+        "Visits_Per_Station_mean": [10.0, 10.0],
+        "Visits_Per_Station_median": [10.0, 10.0],
+        "Visits_Per_Station_std": [0.0, 0.0]
+    })
+
+    result = result.sort_values("HospitalOwnership").reset_index(drop=True)
+    expected = expected.sort_values("HospitalOwnership").reset_index(drop=True)
+
+    pd.testing.assert_frame_equal(result, expected)
+
+def test_sort_order():
+    """Test that output is sorted by visits_perstation_mean descending (ordering by average efficiency)"""
+
+    df = pd.DataFrame({
+        "HospitalOwnership": ["A", "B"],
+        "Tot_ED_NmbVsts": [100, 200],
+        "EDStations": [10, 10],
+        "Visits_Per_Station": [5, 20]  
+    })
+    result = summarize_by_ownership(df)
+    assert result.iloc[0]["HospitalOwnership"] == "B"
+
+def test_missing_col_error():
+    """Test that missing any of the required columns raises ValueError for that column"""
+
+    df = pd.DataFrame({
+        "HospitalOwnership": ["A", "B"]
+    })
+    with pytest.raises(ValueError, match="Missing required columns"):
+        summarize_by_ownership(df)
+
+def test_non_numeric_coercion():
+    """Test coercion of non-numeric values to NaN, and that mean ignores NaN in computation"""
+
+    df = pd.DataFrame({
+        "HospitalOwnership": ["A", "A"],
+        "Tot_ED_NmbVsts": ["100", "bad"],  # 'bad' → NaN
+        "EDStations": ["10", "20"],
+        "Visits_Per_Station": ["5", "5"]
+    })
+    result = summarize_by_ownership(df)
+
+    assert result.loc[0, "Tot_ED_NmbVsts_mean"] == 100.0
+
+def test_missing_ownership():
+    """Test that rows with missing ownership category are dropped from data"""
+
+    df = pd.DataFrame({
+        "HospitalOwnership": ["A", None],
+        "Tot_ED_NmbVsts": [100, 200],
+        "EDStations": [10, 20],
+        "Visits_Per_Station": [10, 10]
+    })
+
+    result = summarize_by_ownership(df)
+
+    assert len(result) == 1
+    assert result.iloc[0]["HospitalOwnership"] == "A"
