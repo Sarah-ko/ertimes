@@ -1,0 +1,66 @@
+zip_code,median_income,county,city
+90001,35200,Los Angeles,Los Angeles
+90002,38400,Los Angeles,Los Angeles
+90003,42100,Los Angeles,Los Angeles
+90004,65800,Los Angeles,Los Angeles
+90005,48300,Los Angeles,Los Angeles
+90006,52100,Los Angeles,Los Angeles
+90007,45600,Los Angeles,Los Angeles
+90008,49800,Los Angeles,Los Angeles
+90009,43200,Los Angeles,Los Angeles
+90010,46500,Los Angeles,Los Angeles
+90011,41200,Los Angeles,Los Angeles
+90012,68900,Los Angeles,Downtown Los Angeles
+90013,72100,Los Angeles,Downtown Los Angeles
+90014,85600,Los Angeles,Downtown Los Angeles
+90015,78900,Los Angeles,Downtown Los Angeles
+90016,95200,Los Angeles,Westwood
+90017,88700,Los Angeles,Downtown Los Angeles
+90018,61200,Los Angeles,Los Angeles
+90019,54800,Los Angeles,Los Angeles
+90020,57300,Los Angeles,Los Angeles
+90021,63200,Los Angeles,Los Angeles
+90022,59800,Los Angeles,Los Angeles
+90023,61500,Los Angeles,Los Angeles
+90024,125600,Los Angeles,Westwood
+90025,145200,Los Angeles,Westwood
+94102,135800,San Francisco,San Francisco
+94103,148200,San Francisco,San Francisco
+94104,152100,San Francisco,San Francisco
+94105,168900,San Francisco,San Francisco
+94106,128700,San Francisco,San Francisco
+94107,142300,San Francisco,San Francisco
+94108,138600,San Francisco,San Francisco
+94109,155200,San Francisco,San Francisco
+94110,98700,San Francisco,San Francisco
+94111,118500,San Francisco,San Francisco
+94112,112200,San Francisco,San Francisco
+94113,95600,San Francisco,San Francisco
+94114,105800,San Francisco,San Francisco
+94115,128900,San Francisco,San Francisco
+94116,95200,San Francisco,San Francisco
+94117,108300,San Francisco,San Francisco
+94118,124500,San Francisco,San Francisco
+94119,131200,San Francisco,San Francisco
+94120,89700,San Francisco,San Francisco
+94121,112800,San Francisco,San Francisco
+92101,58900,San Diego,San Diego
+92102,62400,San Diego,San Diego
+92103,68700,San Diego,San Diego
+92104,75200,San Diego,San Diego
+92105,72100,San Diego,San Diego
+92106,66800,San Diego,San Diego
+92107,71900,San Diego,San Diego
+92108,59200,San Diego,San Diego
+92109,74500,San Diego,San Diego
+92110,81200,San Diego,San Diego
+92111,85600,San Diego,San Diego
+92112,79800,San Diego,San Diego
+92113,64200,San Diego,San Diego
+92114,70100,San Diego,San Diego
+92115,73500,San Diego,San Diego
+92116,67900,San Diego,San Diego
+92117,82100,San Diego,San Diego
+92118,76200,San Diego,San Diego
+92119,69800,San Diego,San Diego
+92120,88900,San Diego,San Diego

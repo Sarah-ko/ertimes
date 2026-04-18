@@ -5,11 +5,39 @@ from ertimes.io import download_emergency_data
 import matplotlib.pyplot as plt
 import seaborn as sns
 import folium
+import os
+from pathlib import Path
+from folium.plugins import MarkerCluster
 
 
 def county_capacity_summary(state: str) -> pd.DataFrame:
+    """
+    Aggregate emergency department capacity metrics at the county level.
+
+    This function downloads ED data for a given state and computes:
+    - total ED visits per county
+    - total ED stations per county
+    - total beds per county (converted to numeric)
+    - visits per station (measure of capacity burden)
+
+    Parameters
+    ----------
+    state : str
+        State name used to download emergency department data.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with one row per county containing summary metrics.
+
+    Raises
+    ------
+    ValueError
+        If required columns are missing from the dataset.
+    """
     df = download_emergency_data(state).copy()
 
+    # Ensure required columns exist before processing
     required_cols = [
         "CountyName",
         "Tot_ED_NmbVsts",
@@ -20,10 +48,14 @@ def county_capacity_summary(state: str) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
+    # Convert key columns to numeric to avoid aggregation errors
     df["Tot_ED_NmbVsts"] = pd.to_numeric(df["Tot_ED_NmbVsts"], errors="coerce")
     df["EDStations"] = pd.to_numeric(df["EDStations"], errors="coerce")
+
+    # Convert bed size categories (e.g., "50-99", "500+") to numeric values
     df["bed_size_numeric"] = df["LICENSED_BED_SIZE"].apply(_bed_size_to_numeric)
 
+    # Aggregate metrics at the county level
     summary = (
         df.groupby("CountyName", dropna=False)
         .agg(
@@ -34,6 +66,7 @@ def county_capacity_summary(state: str) -> pd.DataFrame:
         .reset_index()
     )
 
+    # Calculate visits per station safely (avoid division by zero)
     summary["visits_per_station"] = np.where(
         summary["total_stations"] > 0,
         summary["total_visits"] / summary["total_stations"],
@@ -42,11 +75,38 @@ def county_capacity_summary(state: str) -> pd.DataFrame:
 
     return summary
 
+
 def rank_counties_by_burden(summary: pd.DataFrame) -> pd.DataFrame:
+    """
+    Rank counties by emergency department burden.
+
+    Counties are sorted in descending order of visits per station,
+    where higher values indicate greater strain on ED capacity.
+
+    Parameters
+    ----------
+    summary : pd.DataFrame
+        DataFrame produced by county_capacity_summary, containing
+        'visits_per_station'.
+
+    Returns
+    -------
+    pd.DataFrame
+        Ranked DataFrame sorted by burden (highest first).
+
+    Raises
+    ------
+    ValueError
+        If 'visits_per_station' column is missing.
+    """
+
+    # Ensure required column exists
     if "visits_per_station" not in summary.columns:
         raise ValueError("summary must include 'visits_per_station' column")
 
     ranked = summary.copy()
+
+    # Sort counties by burden (highest first)
     ranked = ranked.sort_values(
         by="visits_per_station",
         ascending=False,
@@ -55,6 +115,7 @@ def rank_counties_by_burden(summary: pd.DataFrame) -> pd.DataFrame:
 
     return ranked
 
+<<<<<<< HEAD
 
 def rank_hospitals_by_visits_per_station(
     df: pd.DataFrame,
@@ -79,10 +140,24 @@ def rank_hospitals_by_visits_per_station(
         'median' or 'mean'. Default 'median'.
     top_n : int | None
         If provided, return only the top_n facilities.
+=======
+def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFrame:
+    """
+    Return a one-row county report from a county summary DataFrame.
+
+    Parameters
+    ----------
+    summary : pd.DataFrame
+        DataFrame containing county-level metrics, such as the output of
+        county_capacity_summary().
+    county_name : str
+        Name of the county to report.
+>>>>>>> 07a3c5930e7d0dc865cad0b62c2931803661d5c6
 
     Returns
     -------
     pd.DataFrame
+<<<<<<< HEAD
         DataFrame with columns [facility_col, 'visits_per_station', 'rank'] sorted
         by 'visits_per_station' descending.
     """
@@ -115,6 +190,32 @@ def rank_hospitals_by_visits_per_station(
         result = result.head(top_n).reset_index(drop=True)
 
     return result
+=======
+        One-row DataFrame containing the selected county's summary metrics.
+
+    Raises
+    ------
+    ValueError
+        If required columns are missing or the county is not found.
+    """
+    required_cols = [
+        "CountyName",
+        "total_visits",
+        "total_stations",
+        "total_beds",
+        "visits_per_station",
+    ]
+    missing = [col for col in required_cols if col not in summary.columns]
+    if missing:
+        raise ValueError(f"summary is missing required columns: {missing}")
+
+    report = summary[summary["CountyName"] == county_name].copy()
+
+    if report.empty:
+        raise ValueError(f"No county found with name '{county_name}'")
+
+    return report.reset_index(drop=True)
+>>>>>>> 07a3c5930e7d0dc865cad0b62c2931803661d5c6
 
 def _bed_size_to_numeric(value: object) -> float:
     if pd.isna(value):
@@ -326,39 +427,86 @@ def find_duplicates(
 
     return duplicates
 
-def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'HospitalOwnership'):
+def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'HospitalOwnership', output_dir: str = 'data'):
     """
+    Generates a statistical distribution plot of ED visits per station.
+
+    This function cleans the input data by removing records with missing values 
+    in the analysis columns, calculates the mean visits per station for the 
+    specified grouping, and produces a boxplot to visualize data spread and outliers.
+
+    Args:
+        df (pd.DataFrame): The Emergency Department dataset containing 
+            'Visits_Per_Station' and the specified grouping column.
+        group_col (str, optional): The categorical column used to group the 
+            hospitals. Defaults to 'HospitalOwnership'.
+        output_dir (str, optional): Directory to save output files. Defaults to 'data'.
+
+    Returns:
+        tuple: A tuple containing:
+            - clean_df (pd.DataFrame): The filtered DataFrame used for the plot.
+            - avg_load (pd.Series): The calculated mean values sorted descending.
+            
+    Raises:
+        KeyError: If 'Visits_Per_Station' or group_col are missing from the DataFrame.
     Prepares and cleans emergency department data for load distribution analysis.
     """
+    # 1. Data Cleaning: Remove rows where essential metrics or grouping labels are missing.
+    # Using .copy() ensures we don't accidentally modify the original source DataFrame.
     clean_df = df.dropna(subset=['Visits_Per_Station', group_col]).copy()
     
+    # 2. Validation: Check if the resulting dataset is empty. 
+    # This prevents the program from crashing during plotting if no valid data exists.
     if clean_df.empty:
         print(f"Warning: No valid data available for {group_col}.")
         return None
     
+    # 3. Numerical Computing: Aggregate data to find the average visit burden per category.
+    # Sorting descending provides an immediate insight into which categories have the highest load.
     avg_load = clean_df.groupby(group_col)['Visits_Per_Station'].mean().sort_values(ascending=False)
     
     print(f"\n--- Statistical Summary: Mean Visits per Station by {group_col} ---")
     print(avg_load.head())
     
-    plt.figure(figsize=(12, 6))
+    # 4. Visualization: Initialize a figure and generate a Seaborn boxplot.
+    # Boxplots are chosen over simple bar charts because they visualize the full distribution,
+    # including the median, quartiles, and outliers within each hospital category.
+    fig = plt.figure(figsize=(12, 6))
     sns.boxplot(data=clean_df, x=group_col, y='Visits_Per_Station', palette="viridis")
     
+    # 5. Aesthetic Polishing: Set titles, labels, and rotate x-axis text for readability.
+    # Tight_layout is used to ensure labels do not get cut off when the image is saved.
     plt.title(f'Distribution of ED Visits per Station by {group_col}')
     plt.xticks(rotation=45)
     plt.ylabel('Visits per Station')
     plt.tight_layout()
     
-    output_path = f"data/load_distribution_{group_col}.png"
-    plt.savefig(output_path)
-    print(f"\nSuccess: Distribution plot saved to {output_path}")
+    # 6. File I/O & Error Handling: Construct path and save the image safely.
+    # Using Path objects handles slashes correctly across different operating systems.
+    output_path = Path(output_dir) / f"load_distribution_{group_col}.png"
+    try:
+        # Ensure the target directory exists (mkdir) before attempting to write the file.
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        plt.savefig(output_path)
+        plt.close(fig)  # Explicitly close the figure to free up system memory after the file is saved.
+        print(f"\nSuccess: Distribution plot saved to {output_path}")
+    except PermissionError as e:
+        # Handle cases where the data folder is locked or read-only.
+        print(f"Error: Permission denied when creating directory or saving file: {e}")
+        plt.close(fig)
+        raise
+    except Exception as e:
+        # Catch-all for other I/O issues (e.g., disk full) to provide a clear error message.
+        print(f"Error: Failed to save plot: {e}")
+        plt.close(fig)
+        raise
 
-def year_range(csv_file):
-   df=pd.read_csv(csv_file)
-   earliest_year = df['year'].min()
-   latest_year=df['year'].max()
-   print(year_range('data/Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv'))
-   return "earliest year: " + str(earliest_year), "latest year: " + str(latest_year)
+def year_range(csv_file:str)->tuple[int,int]:
+    df=pd.read_csv(csv_file)
+    if "year" not in df.columns:
+        raise ValueError("CSV must contain a 'year' column")
+    df["year"]=pd.to_numeric(df["year"],errors="coerce")
+    return int(df["year"].min()),int(df["year"].max())
 
 def plot_facility_trend(df: pd.DataFrame, facility_id: str):
     """
@@ -443,59 +591,83 @@ def per_category_burden_report(df, top_n=3):
 
 def run_er_analysis(df, hospital_name=None):
     """
-    Minimal ER analysis:
+    ER analysis:
     - Compute year-over-year (YoY) changes
     - Use visits per station as a proxy for utilization
     - Detect mismatches between demand and capacity
     - Generate simple visualizations
     """
 
+    # Sort for correct time-series operations
     df = df.sort_values(["oshpd_id", "year"]).copy()
 
-    df["YoY_Visits"] = df.groupby("oshpd_id")["Tot_ED_NmbVsts"].pct_change()
+    # Year-over-year visits change
+    df["YoY_Visits"] = (
+    df.groupby("oshpd_id")["Tot_ED_NmbVsts"]
+    .transform(lambda x: x.ffill().pct_change())
+)
 
+    # Utilization proxy
     df["Utilization"] = df["Visits_Per_Station"]
 
-    df["Utilization_change"] = df.groupby("oshpd_id")["Utilization"].pct_change(fill_method=None)
+    # FIX: remove deprecated fill_method argument
+    df["Utilization_change"] = (
+    df.groupby("oshpd_id")["Utilization"]
+    .transform(lambda x: x.ffill().pct_change())
+)
 
+    # Detect mismatch: demand ↑ but utilization not ↑
     df["Mismatch"] = (
         (df["YoY_Visits"] > 0) & (df["Utilization_change"] <= 0)
     )
 
-    plt.figure()
+    # --- Visualization 1: Capacity vs Demand ---
+    fig1 = plt.figure()
     plt.scatter(df["Visits_Per_Station"], df["Tot_ED_NmbVsts"])
     plt.xlabel("Capacity (Visits per Station)")
     plt.ylabel("Demand (Total Visits)")
     plt.title("Capacity vs Demand")
+    plt.tight_layout()
     plt.show()
+    plt.close(fig1)  # Close figure to prevent memory leak
 
+    # --- Visualization 2: Specific hospital trend ---
     if hospital_name:
         data = df[df["FacilityName2"] == hospital_name]
 
-        plt.figure()
-        plt.plot(data["year"], data["Tot_ED_NmbVsts"], marker="o")
-        plt.title(f"ER Visits Trend - {hospital_name}")
-        plt.xlabel("Year")
-        plt.ylabel("Visits")
-        plt.show()
+        if not data.empty:
+            fig2 = plt.figure()
+            plt.plot(data["year"], data["Tot_ED_NmbVsts"], marker="o")
+            plt.title(f"ER Visits Trend - {hospital_name}")
+            plt.xlabel("Year")
+            plt.ylabel("Visits")
+            plt.tight_layout()
+            plt.show()
+            plt.close(fig2)  # Close figure to prevent memory leak
+        else:
+            print(f"[Warning] No data found for hospital: {hospital_name}")
 
+    # --- Visualization 3: Average YoY trend ---
     yoy = df.groupby("year")["YoY_Visits"].mean()
 
-    plt.figure()
+    fig3 = plt.figure()
     yoy.plot(marker="o")
     plt.title("Average Year-over-Year Change in ER Visits")
     plt.xlabel("Year")
     plt.ylabel("YoY Change")
+    plt.tight_layout()
     plt.show()
+    plt.close(fig3)  # Close figure to prevent memory leak
 
     return df
+
 
 import os
 import folium
 from folium.plugins import MarkerCluster
 import pandas as pd
 
-
+# Urban vs rural disparity dashboard
 def plot_urban_rural_map(state: str) -> folium.Map:
     """Downloads emergency data for a given state and displays hospital
 
@@ -503,9 +675,11 @@ def plot_urban_rural_map(state: str) -> folium.Map:
 
     Duplicate coordinates are merged to prevent overlapping issues on the map.
     """
+    # Download the dataset
     print(f"Loading/Downloading dataset for state: {state}...")
     df = download_emergency_data(state)
 
+    # Check if required columns exist in the downloaded dataset
     required_cols = ["LATITUDE", "LONGITUDE", "UrbanRuralDesi", "FacilityName2"]
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
@@ -513,8 +687,10 @@ def plot_urban_rural_map(state: str) -> folium.Map:
             f"Downloaded dataset is missing required columns for mapping: {missing}"
         )
 
+    # Drop rows where coordinates are missing
     map_data = df.dropna(subset=["LATITUDE", "LONGITUDE"]).copy()
 
+    # Convert coordinates to numeric, handling errors
     map_data["LATITUDE"] = pd.to_numeric(map_data["LATITUDE"], errors="coerce")
     map_data["LONGITUDE"] = pd.to_numeric(
         map_data["LONGITUDE"], errors="coerce"
@@ -522,7 +698,8 @@ def plot_urban_rural_map(state: str) -> folium.Map:
     map_data = map_data.dropna(subset=["LATITUDE", "LONGITUDE"])
 
     print(f"Total raw hospital records: {len(map_data)}")
-
+    
+    # Group by coordinates and combine hospital names and area types
     map_data = (
         map_data.groupby(["LATITUDE", "LONGITUDE"])
         .agg(
@@ -545,6 +722,7 @@ def plot_urban_rural_map(state: str) -> folium.Map:
         print("Warning: No valid hospital coordinates found to plot.")
         return None
 
+    # Initialize map at the mean center of all hospitals
     center_lat = map_data["LATITUDE"].mean()
     center_lon = map_data["LONGITUDE"].mean()
 
@@ -556,9 +734,12 @@ def plot_urban_rural_map(state: str) -> folium.Map:
         disableClusteringAtZoom=9,  
     ).add_to(m)
 
+     # Iterate through each unique location and add colored markers
     for _, row in map_data.iterrows():
         hospital_names = row["FacilityName2"]
         area_type = str(row["UrbanRuralDesi"]).strip().lower()
+        
+        # Assign colors and icons based on Urban/Rural status
 
         if "urban" in area_type:
             marker_color = "blue"
@@ -575,20 +756,23 @@ def plot_urban_rural_map(state: str) -> folium.Map:
             popup=f"<b>Hospital(s):</b><br>{hospital_names}<br><b>Type:</b> {row['UrbanRuralDesi']}",
             icon=folium.Icon(color=marker_color, icon=marker_icon),
         ).add_to(marker_cluster)
-
-    output_dir = "data"
-    os.makedirs(output_dir, exist_ok=True)
-    output_path = f"{output_dir}/urban_rural_map_{state}.html"
-
-    m.save(output_path)
-    print(f"\nSuccess: Map saved to {output_path}")
+    
+    # Save the map to an HTML file
+    output_dir = Path("data")
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / f"urban_rural_map_{state}.html"
+        m.save(str(output_path))
+        print(f"\nSuccess: Map saved to {output_path}")
+    except PermissionError as e:
+        print(f"Error: Permission denied when creating directory or saving file: {e}")
+        raise
+    except Exception as e:
+        print(f"Error: Failed to save map: {e}")
+        raise
 
     return m
 
-
-if __name__ == "__main__":
-    target_state = "california"
-    hospital_map = plot_urban_rural_map(target_state)
 
 def mental_health_shortage_analysis(df):
     df = df.copy()
@@ -616,32 +800,47 @@ def summarize_by_ownership(df,
     stations="EDStations",
     visits_perstation="Visits_Per_Station"):
     """
-    group hospitals by ownership type and compute summary statistics for burden, volume, & capacity insight 
-    """
+    group hospitals by ownership type and compute summary statistics for burden, volume, & capacity insight
+    group hospitals by ownership type and compute summary statistics for burden, volume, & capacity insights
+   
+    parameters needed:
+    ownership_type: column name representing ownership categories (e.g. nonprofit, government, private, etc)
+    total_visits: column name representing total number of emergency department encounters for the facility
+    stations: column name representing the number of emergency department treatment stations
+    visits_perstation: column name representing number of visits per station in a facility
+      """
+    #ensure all required columns exist, raise column specific error if not
+    ""
+
 
     required = [ownership_type, total_visits, stations, visits_perstation]
     missing = [col for col in required if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
-
+    # create a copy of the original data frame to avoid overwriting/modifying
     df = df.copy()
-
+    #ensure columns are read as numeric for numeric analysis
     df[total_visits] = pd.to_numeric(df[total_visits], errors="coerce")
     df[stations] = pd.to_numeric(df[stations], errors="coerce")
     df[visits_perstation] = pd.to_numeric(df[visits_perstation], errors="coerce")
-
+    #drop observations that are missing ownership type (our parameter of interest for grouping)
 
     df = df.dropna(subset=[ownership_type])
+    #group by different types of ownership, compute summary statistics 
 
     summary = df.groupby(ownership_type).agg({
-    total_visits: ["mean", "sum"],
-    stations: ["mean", "sum"],
-    visits_perstation: ["mean", "median", "std"]})
+    total_visits: ["mean", "sum"], #volume metric
+    stations: ["mean", "sum"], #capacity metric
+    visits_perstation: ["mean", "median", "std"]}) #burden metric
+    #flattens column names & resets to have ownership type column 
 
     summary.columns = ["_".join(col) for col in summary.columns]
     summary = summary.reset_index()
+    #return columns sorted by average efficiency in descending order
+
     summary = summary.sort_values(by=f"{visits_perstation}_mean", ascending=False)
     
+    #output final summary
     return summary
 
 
@@ -698,4 +897,57 @@ def calculate_growth(df, value_col, group_cols, time_col="year", pct=True):
    return df
 
 
+def county_facility_counts(csv_file, county_col="CountyName", facility_col="FacilityName2"):
+    df = pd.read_csv(csv_file)
+    
+    required = [county_col, facility_col]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+    
+    df = df.copy()
+    df = df.dropna(subset=[county_col, facility_col])
+    counts = df.groupby(county_col)[facility_col].nunique().reset_index()
+    counts = counts.rename(columns={facility_col: "facility_count"})
+    
+    return counts.sort_values(by="facility_count", ascending=False).reset_index(drop=True)
 
+def spike_frequency_pivot(
+    df: pd.DataFrame,
+    threshold_pct: float = 20.0
+) -> pd.DataFrame:
+    """
+    Builds a pivot table of spike frequency aggregated by category.
+
+    A spike is a year-over-year increase in Visits_Per_Station that
+    meets or exceeds threshold_pct for a given facility + category.
+
+    Parameters:
+        df            : Raw hospital DataFrame
+        threshold_pct : Minimum % YoY increase to count as a spike
+
+    Returns:
+        Pivot table with Category as index and 'spike_count' as column,
+        sorted by spike frequency descending.
+    """
+
+    # --- 1. Compute year-over-year % change per facility + category ---
+    df = df.copy()
+
+    df['yoy_pct_change'] = (
+        df.sort_values('year')
+          .groupby(['FacilityName2', 'Category'])['Visits_Per_Station']
+          .pct_change() * 100
+    )
+
+    # --- 2. Flag spikes ---
+    df['is_spike'] = (df['yoy_pct_change'] >= threshold_pct).astype(int)
+
+    # --- 3. Pivot: rows = Category, value = total spike count ---
+    pivot = df.pivot_table(
+        index='Category',
+        values='is_spike',
+        aggfunc='sum'
+    ).rename(columns={'is_spike': 'spike_count'})
+
+    return pivot.sort_values('spike_count', ascending=False)
