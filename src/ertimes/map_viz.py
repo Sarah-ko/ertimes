@@ -18,7 +18,7 @@ def create_ed_map(df, year):
     color_map = {"Yes": "red", "No": "green"}
     
     # Create the scatter mapbox
-    fig = px.scatter_mapbox(
+    fig = px.scatter_map(
         df_year,
         lat="latitude",
         lon="longitude",

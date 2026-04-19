@@ -29,38 +29,8 @@ def download_emergency_data(state: str) -> pd.DataFrame:
     return df
 
 
-<<<<<<< HEAD
 def load_emergency_data(filepath: str) -> pd.DataFrame:
     """Load and clean emergency department data from a CSV file."""
     df = pd.read_csv(filepath)
     df = clean_data(df)
     return df
-=======
-def test_data_reading(state: str):
-    """
-    Tests if the data from the URL is correctly read into a DataFrame.
-    """
-    try:
-        print(f"Attempting to read data for {state}...")
-        df = download_emergency_data(state)
-        
-        if isinstance(df, pd.DataFrame):
-            print("✓ Success: Data is a valid Pandas DataFrame.")
-            
-            print(f"✓ Success: Found {len(df)} rows of data.")
-            
-            if 'Facility Name' in df.columns:
-                print("✓ Success: 'Facility Name' column detected.")
-                
-            print("\nFirst 3 rows of data:")
-            print(df.head(3))
-            
-            return True
-    except Exception as e:
-        print(f"✗ Failed to read data: {e}")
-        return False
-if __name__ == "__main__":
-    test_data_reading("california")
-if __name__ == "__main__":
-    test_data_reading("california")
->>>>>>> dabf5752ae9cb14f967683c57359be2ba2e4495e
