@@ -755,34 +755,34 @@ def summarize_by_ownership(df,
     visits_perstation: column name representing number of visits per station in a facility
       """
     #ensure all required columns exist, raise column specific error if not
-    ""
-
-
     required = [ownership_type, total_visits, stations, visits_perstation]
     missing = [col for col in required if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
+   
     # create a copy of the original data frame to avoid overwriting/modifying
     df = df.copy()
+    
     #ensure columns are read as numeric for numeric analysis
     df[total_visits] = pd.to_numeric(df[total_visits], errors="coerce")
     df[stations] = pd.to_numeric(df[stations], errors="coerce")
     df[visits_perstation] = pd.to_numeric(df[visits_perstation], errors="coerce")
+    
     #drop observations that are missing ownership type (our parameter of interest for grouping)
-
     df = df.dropna(subset=[ownership_type])
+   
     #group by different types of ownership, compute summary statistics 
+    summary = (df.groupby(ownership_type).agg(**{
+            f"{total_visits}_mean": (total_visits, "mean"),
+            f"{total_visits}_sum": (total_visits, "sum"),
+            f"{stations}_mean": (stations, "mean"),
+            f"{stations}_sum": (stations, "sum"),
+            f"{visits_perstation}_mean": (visits_perstation, "mean"),
+            f"{visits_perstation}_median": (visits_perstation, "median"),
+            f"{visits_perstation}_std": (visits_perstation, "std"),}
+            ).reset_index())
 
-    summary = df.groupby(ownership_type).agg({
-    total_visits: ["mean", "sum"], #volume metric
-    stations: ["mean", "sum"], #capacity metric
-    visits_perstation: ["mean", "median", "std"]}) #burden metric
-    #flattens column names & resets to have ownership type column 
-
-    summary.columns = ["_".join(col) for col in summary.columns]
-    summary = summary.reset_index()
     #return columns sorted by average efficiency in descending order
-
     summary = summary.sort_values(by=f"{visits_perstation}_mean", ascending=False)
     
     #output final summary
