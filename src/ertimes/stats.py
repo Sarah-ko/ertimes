@@ -2,6 +2,7 @@ import re
 import numpy as np
 import pandas as pd
 from ertimes.io import download_emergency_data
+from ertimes.clean import clean_data
 import matplotlib.pyplot as plt
 import seaborn as sns
 import folium
@@ -39,28 +40,28 @@ def county_capacity_summary(state: str) -> pd.DataFrame:
 
     # Ensure required columns exist before processing
     required_cols = [
-        "CountyName",
-        "Tot_ED_NmbVsts",
-        "EDStations",
-        "LICENSED_BED_SIZE",
+        "county_name",
+        "total_ed_visits",
+        "ed_stations",
+        "licensed_bed_size",
     ]
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
     # Convert key columns to numeric to avoid aggregation errors
-    df["Tot_ED_NmbVsts"] = pd.to_numeric(df["Tot_ED_NmbVsts"], errors="coerce")
-    df["EDStations"] = pd.to_numeric(df["EDStations"], errors="coerce")
+    df["total_ed_visits"] = pd.to_numeric(df["total_ed_visits"], errors="coerce")
+    df["ed_stations"] = pd.to_numeric(df["ed_stations"], errors="coerce")
 
     # Convert bed size categories (e.g., "50-99", "500+") to numeric values
-    df["bed_size_numeric"] = df["LICENSED_BED_SIZE"].apply(_bed_size_to_numeric)
+    df["bed_size_numeric"] = df["licensed_bed_size"].apply(_bed_size_to_numeric)
 
     # Aggregate metrics at the county level
     summary = (
-        df.groupby("CountyName", dropna=False)
+        df.groupby("county_name", dropna=False)
         .agg(
-            total_visits=("Tot_ED_NmbVsts", "sum"),
-            total_stations=("EDStations", "sum"),
+            total_visits=("total_ed_visits", "sum"),
+            total_stations=("ed_stations", "sum"),
             total_beds=("bed_size_numeric", "sum"),
         )
         .reset_index()
@@ -138,7 +139,7 @@ def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFr
         If required columns are missing or the county is not found.
     """
     required_cols = [
-        "CountyName",
+        "county_name",
         "total_visits",
         "total_stations",
         "total_beds",
@@ -148,7 +149,7 @@ def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFr
     if missing:
         raise ValueError(f"summary is missing required columns: {missing}")
 
-    report = summary[summary["CountyName"] == county_name].copy()
+    report = summary[summary["county_name"] == county_name].copy()
 
     if report.empty:
         raise ValueError(f"No county found with name '{county_name}'")
@@ -179,16 +180,17 @@ def _bed_size_to_numeric(value: object) -> float:
 def find_capacity_volume_mismatch(
     df: pd.DataFrame,
     *,
-    visit_col: str = "Tot_ED_NmbVsts",
-    stations_col: str = "EDStations",
-    bed_col: str = "LICENSED_BED_SIZE",
-    facility_col: str = "FacilityName2",
-    county_col: str = "CountyName",
+    visit_col: str = "total_ed_visits",
+    stations_col: str = "ed_stations",
+    bed_col: str = "licensed_bed_size",
+    facility_col: str = "facility_name",
+    county_col: str = "county_name",
     year_col: str = "year",
     high_visit_quantile: float = 0.75,
     low_capacity_quantile: float = 0.25,
     min_visits: int | None = None,
 ) -> pd.DataFrame:
+    df = clean_data(df)
     required_cols = [visit_col, stations_col, bed_col, facility_col]
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
@@ -276,6 +278,7 @@ def compute_capacity_pressure_score(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame with FacilityName2 and their capacity_pressure_score (1–10)
     """
+    df = clean_data(df)
 
     bed_size_order = {
         '1-49':    1,
@@ -288,16 +291,16 @@ def compute_capacity_pressure_score(df: pd.DataFrame) -> pd.DataFrame:
     }
 
     df = df.copy()
-    df['bed_size_rank'] = df['LICENSED_BED_SIZE'].map(bed_size_order)
+    df['bed_size_rank'] = df['licensed_bed_size'].map(bed_size_order)
 
     def safe_mode(series):
         mode = series.mode()
         return mode.iloc[0] if not mode.empty else np.nan
 
-    grouped = df.groupby('FacilityName2').agg(
-        visits_per_station   = ('Visits_Per_Station',      'median'),
-        primary_care_shortage = ('PrimaryCareShortageArea', safe_mode),
-        mental_health_shortage = ('MentalHealthShortageArea', safe_mode),
+    grouped = df.groupby('facility_name').agg(
+        visits_per_station   = ('visits_per_station',      'median'),
+        primary_care_shortage = ('primary_care_shortage_area', safe_mode),
+        mental_health_shortage = ('mental_health_shortage_area', safe_mode),
         bed_size_rank        = ('bed_size_rank',            'median')
     ).reset_index()
 
@@ -328,7 +331,7 @@ def compute_capacity_pressure_score(df: pd.DataFrame) -> pd.DataFrame:
 
     grouped['capacity_pressure_score'] = (grouped['raw_score'] * 9 + 1).round(2)
 
-    return grouped[['FacilityName2', 'capacity_pressure_score']].sort_values(
+    return grouped[['facility_name', 'capacity_pressure_score']].sort_values(
         'capacity_pressure_score', ascending=False
     ).reset_index(drop=True)
 
