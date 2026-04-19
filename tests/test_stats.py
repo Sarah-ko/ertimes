@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import folium
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to prevent windows
 import matplotlib.pyplot as plt
 import sys
 
@@ -65,23 +67,23 @@ def test_bed_size_to_numeric():
 def test_rank_counties_by_burden():
     summary = pd.DataFrame(
         {
-            "CountyName": ["A", "B", "C"],
+            "county_name": ["A", "B", "C"],
             "visits_per_station": [10, 30, 20],
         }
     )
 
     ranked = stats.rank_counties_by_burden(summary)
 
-    assert list(ranked["CountyName"]) == ["B", "C", "A"]
+    assert list(ranked["county_name"]) == ["B", "C", "A"]
 
 
 def test_county_capacity_summary(monkeypatch):
     fake_df = pd.DataFrame(
         {
-            "CountyName": ["Alameda", "Alameda", "Fresno"],
-            "Tot_ED_NmbVsts": [100, 200, 90],
-            "EDStations": [10, 20, 0],
-            "LICENSED_BED_SIZE": ["1-49", "50-99", "100-199"],
+            "county_name": ["Alameda", "Alameda", "Fresno"],
+            "total_ed_visits": [100, 200, 90],
+            "ed_stations": [10, 20, 0],
+            "licensed_bed_size": ["1-49", "50-99", "100-199"],
         }
     )
 
@@ -92,8 +94,8 @@ def test_county_capacity_summary(monkeypatch):
 
     result = stats.county_capacity_summary("California")
 
-    alameda = result[result["CountyName"] == "Alameda"].iloc[0]
-    fresno = result[result["CountyName"] == "Fresno"].iloc[0]
+    alameda = result[result["county_name"] == "Alameda"].iloc[0]
+    fresno = result[result["county_name"] == "Fresno"].iloc[0]
 
     assert alameda["total_visits"] == 300
     assert alameda["total_stations"] == 30
@@ -108,12 +110,12 @@ def test_county_capacity_summary(monkeypatch):
 def test_find_capacity_volume_mismatch_flags_expected_hospital():
     df = pd.DataFrame(
         {
-            "FacilityName2": ["A", "B", "C", "D"],
-            "CountyName": ["X", "X", "Y", "Y"],
+            "facility_name": ["A", "B", "C", "D"],
+            "county_name": ["X", "X", "Y", "Y"],
             "year": [2023, 2023, 2023, 2023],
-            "Tot_ED_NmbVsts": [1000, 900, 700, 100],
-            "EDStations": [1, 10, 8, 20],
-            "LICENSED_BED_SIZE": ["1-49", "500+", "300-499", "500+"],
+            "total_ed_visits": [1000, 900, 700, 100],
+            "ed_stations": [1, 10, 8, 20],
+            "licensed_bed_size": ["1-49", "500+", "300-499", "500+"],
         }
     )
 
@@ -124,7 +126,7 @@ def test_find_capacity_volume_mismatch_flags_expected_hospital():
     )
 
     assert len(result) == 1
-    assert result.loc[0, "FacilityName2"] == "A"
+    assert result.loc[0, "facility_name"] == "A"
     assert result.loc[0, "mismatch_score"] > 0
 
 
@@ -274,8 +276,8 @@ def test_plot_category_visits(monkeypatch, capsys):
     monkeypatch.setattr(plt, "show", lambda: None)
     # Build a sample DataFrame
     df = pd.DataFrame({
-        "Category": ["A", "B", "All ED Visits", "A", "C", "B"],
-        "EDDXCount": [10, 5, 9999, None, 20, 5]
+        "category": ["A", "B", "All ED Visits", "A", "C", "B"],
+        "ed_burden": [10, 5, 9999, None, 20, 5]
     })
     # Run the function
     plot_category_visits(df)
@@ -285,8 +287,8 @@ def test_plot_category_visits(monkeypatch, capsys):
 
     # Expected grouped/summed output (A: 10, B: 10, C: 20)
     expected_df = pd.DataFrame({
-        "Category": ["C", "A", "B"],
-        "EDDXCount": [20.0, 10.0, 10.0]
+        "category": ["C", "A", "B"],
+        "ed_burden": [20.0, 10.0, 10.0]
     })
 
     # Convert printed output into a DataFrame
@@ -301,7 +303,7 @@ def test_plot_category_visits(monkeypatch, capsys):
 def test_generate_county_report_basic():
     summary = pd.DataFrame(
         {
-            "CountyName": ["Autauga", "Baldwin"],
+            "county_name": ["Autauga", "Baldwin"],
             "total_visits": [1000, 2000],
             "total_stations": [10, 20],
             "total_beds": [75.0, 125.0],
@@ -311,13 +313,13 @@ def test_generate_county_report_basic():
     result = generate_county_report(summary, "Autauga")
 
     assert result.shape == (1, 5)
-    assert result.loc[0, "CountyName"] == "Autauga"
+    assert result.loc[0, "county_name"] == "Autauga"
     assert result.loc[0, "total_visits"] == 1000
 
 def test_generate_county_report_missing_county():
     summary = pd.DataFrame(
         {
-            "CountyName": ["Autauga", "Baldwin"],
+            "county_name": ["Autauga", "Baldwin"],
             "total_visits": [1000, 2000],
             "total_stations": [10, 20],
             "total_beds": [75.0, 125.0],
@@ -387,18 +389,21 @@ def test_calculate_growth_absolute():
     )
 
     assert result.loc[1, "growth"] == 50
-    
+
+# Test for plot_urban_rural_map() function
 def test_plot_urban_rural_map_runs(monkeypatch):
     """
     Verifies that plot_urban_rural_map runs successfully
     and returns a folium Map object.
+
+    The map need to be manually opened.
     """
 
     fake_df = pd.DataFrame({
-        "LATITUDE": [34.1, 35.2],
-        "LONGITUDE": [-118.2, -119.3],
-        "UrbanRuralDesi": ["Urban", "Rural"],
-        "FacilityName2": ["Hospital A", "Hospital B"]
+        "latitude": [34.1, 35.2],
+        "longitude": [-118.2, -119.3],
+        "urban_rural_designation": ["Urban", "Rural"],
+        "facility_name": ["Hospital A", "Hospital B"]
     })
 
     def fake_download(state):
@@ -412,42 +417,26 @@ def test_plot_urban_rural_map_runs(monkeypatch):
     assert isinstance(result, folium.Map)
 
 
-sys.path.append("src")
-
-from ertimes.stats import run_er_analysis
-
-def test_run_er_analysis():
-    # load data
-    df = pd.read_excel("data/emergency-department-volume-and-capacity-2021-2023.xlsx")
-
-    # run function
-    result = run_er_analysis(df)
-
-    # basic checks
-    assert isinstance(result, pd.DataFrame)
-    assert "YoY_Visits" in result.columns
-    assert "Utilization" in result.columns
-    assert "Mismatch" in result.columns
-# compute_capacity_pressure_score tests
+# Compute_capacity_pressure_score tests
 def make_df(facilities: list[dict]) -> pd.DataFrame:
     """Build a test DataFrame from a list of facility dicts."""
     defaults = {
-        'PrimaryCareShortageArea':  'No',
-        'MentalHealthShortageArea': 'No',
-        'Visits_Per_Station':       100.0,
-        'LICENSED_BED_SIZE':        '200-299',
+        'primary_care_shortage_area':  'No',
+        'mental_health_shortage_area': 'No',
+        'visits_per_station':       100.0,
+        'licensed_bed_size':        '200-299',
     }
     rows = [{**defaults, **f} for f in facilities]
     return pd.DataFrame(rows)
 
 def score(df):
-    return compute_capacity_pressure_score(df).set_index('FacilityName2')['capacity_pressure_score']
+    return compute_capacity_pressure_score(df).set_index('facility_name')['capacity_pressure_score']
 
 @pytest.fixture
 def two_hospitals():
     return make_df([
-        {'FacilityName2': 'High', 'Visits_Per_Station': 1000.0, 'PrimaryCareShortageArea': 'Yes', 'MentalHealthShortageArea': 'Yes', 'LICENSED_BED_SIZE': '1-49'},
-        {'FacilityName2': 'Low',  'Visits_Per_Station': 10.0},
+        {'facility_name': 'High', 'visits_per_station': 1000.0, 'primary_care_shortage_area': 'Yes', 'mental_health_shortage_area': 'Yes', 'licensed_bed_size': '1-49'},
+        {'facility_name': 'Low',  'visits_per_station': 10.0},
     ])
 
 
@@ -460,14 +449,14 @@ def test_score_is_numeric(two_hospitals):
 
 def test_output_columns(two_hospitals):
     result = compute_capacity_pressure_score(two_hospitals)
-    assert list(result.columns) == ['FacilityName2', 'capacity_pressure_score']
+    assert list(result.columns) == ['facility_name', 'capacity_pressure_score']
 
 def test_sorted_descending(two_hospitals):
     s = compute_capacity_pressure_score(two_hospitals)['capacity_pressure_score'].tolist()
     assert s == sorted(s, reverse=True)
 
 def test_one_row_per_facility():
-    df = make_df([{'FacilityName2': 'A'}, {'FacilityName2': 'A'}])
+    df = make_df([{'facility_name': 'A'}, {'facility_name': 'A'}])
     assert len(compute_capacity_pressure_score(df)) == 1
 
 def test_high_utilization_scores_higher(two_hospitals):
@@ -475,23 +464,23 @@ def test_high_utilization_scores_higher(two_hospitals):
     assert s['High'] > s['Low']
 
 def test_shortage_increases_score():
-    df = make_df([{'FacilityName2': 'Shortage', 'PrimaryCareShortageArea': 'Yes', 'MentalHealthShortageArea': 'Yes'},
-                  {'FacilityName2': 'None'}])
+    df = make_df([{'facility_name': 'Shortage', 'primary_care_shortage_area': 'Yes', 'mental_health_shortage_area': 'Yes'},
+                  {'facility_name': 'None'}])
     s = score(df)
     assert s['Shortage'] > s['None']
 
 def test_smaller_bed_size_increases_score():
-    df = make_df([{'FacilityName2': 'Small', 'LICENSED_BED_SIZE': '1-49'},
-                  {'FacilityName2': 'Large', 'LICENSED_BED_SIZE': '500+'}])
+    df = make_df([{'facility_name': 'Small', 'licensed_bed_size': '1-49'},
+                  {'facility_name': 'Large', 'licensed_bed_size': '500+'}])
     s = score(df)
     assert s['Small'] > s['Large']
 
 def test_zero_visits_no_nan():
-    df = make_df([{'FacilityName2': 'A', 'Visits_Per_Station': 0.0}])
+    df = make_df([{'facility_name': 'A', 'visits_per_station': 0.0}])
     assert not score(df).isna().any()
 
 def test_smoke_real_data():
-    df = pd.read_csv('data/Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv')
+    df = download_emergency_data("california")
     assert not score(df).isna().any()
 
 
@@ -597,3 +586,33 @@ def test_missing_ownership():
 
     assert len(result) == 1
     assert result.iloc[0]["HospitalOwnership"] == "A"
+import sys
+
+
+sys.path.append("src")
+
+import ertimes.stats as stats
+
+
+def fake_download():
+    return pd.DataFrame({
+        "oshpd_id": [1, 1, 2, 2],
+        "year": [2021, 2022, 2021, 2022],
+        "Tot_ED_NmbVsts": [100, 120, 200, 210],
+        "Visits_Per_Station": [10, 12, 20, 21],
+        "FacilityName2": ["A", "A", "B", "B"]
+    })
+
+
+def test_run_er_analysis(monkeypatch):
+ 
+    monkeypatch.setattr(stats, "download_emergency_data", fake_download)
+
+    df = fake_download()
+    result = stats.run_er_analysis(df)
+
+    # checks
+    assert isinstance(result, pd.DataFrame)
+    assert "YoY_Visits" in result.columns
+    assert "Utilization" in result.columns
+    assert "Mismatch" in result.columns
