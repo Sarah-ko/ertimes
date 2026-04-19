@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import folium
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to prevent windows
 import matplotlib.pyplot as plt
 import sys
 
@@ -274,8 +276,8 @@ def test_plot_category_visits(monkeypatch, capsys):
     monkeypatch.setattr(plt, "show", lambda: None)
     # Build a sample DataFrame
     df = pd.DataFrame({
-        "Category": ["A", "B", "All ED Visits", "A", "C", "B"],
-        "EDDXCount": [10, 5, 9999, None, 20, 5]
+        "category": ["A", "B", "All ED Visits", "A", "C", "B"],
+        "ed_burden": [10, 5, 9999, None, 20, 5]
     })
     # Run the function
     plot_category_visits(df)
@@ -285,8 +287,8 @@ def test_plot_category_visits(monkeypatch, capsys):
 
     # Expected grouped/summed output (A: 10, B: 10, C: 20)
     expected_df = pd.DataFrame({
-        "Category": ["C", "A", "B"],
-        "EDDXCount": [20.0, 10.0, 10.0]
+        "category": ["C", "A", "B"],
+        "ed_burden": [20.0, 10.0, 10.0]
     })
 
     # Convert printed output into a DataFrame
@@ -398,10 +400,10 @@ def test_plot_urban_rural_map_runs(monkeypatch):
     """
 
     fake_df = pd.DataFrame({
-        "LATITUDE": [34.1, 35.2],
-        "LONGITUDE": [-118.2, -119.3],
-        "UrbanRuralDesi": ["Urban", "Rural"],
-        "FacilityName2": ["Hospital A", "Hospital B"]
+        "latitude": [34.1, 35.2],
+        "longitude": [-118.2, -119.3],
+        "urban_rural_designation": ["Urban", "Rural"],
+        "facility_name": ["Hospital A", "Hospital B"]
     })
 
     def fake_download(state):

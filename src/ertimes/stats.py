@@ -368,7 +368,7 @@ def find_duplicates(
 
     return duplicates
 
-def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'HospitalOwnership', output_dir: str = 'data'):
+def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'hospital_ownership', output_dir: str = 'data', save: bool = False):
     """
     Generates a statistical distribution plot of ED visits per station.
 
@@ -378,9 +378,9 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
 
     Args:
         df (pd.DataFrame): The Emergency Department dataset containing 
-            'Visits_Per_Station' and the specified grouping column.
+            'visits_per_station' and the specified grouping column.
         group_col (str, optional): The categorical column used to group the 
-            hospitals. Defaults to 'HospitalOwnership'.
+            hospitals. Defaults to 'hospital_ownership'.
         output_dir (str, optional): Directory to save output files. Defaults to 'data'.
 
     Returns:
@@ -389,12 +389,12 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
             - avg_load (pd.Series): The calculated mean values sorted descending.
             
     Raises:
-        KeyError: If 'Visits_Per_Station' or group_col are missing from the DataFrame.
+        KeyError: If 'visits_per_station' or group_col are missing from the DataFrame.
     Prepares and cleans emergency department data for load distribution analysis.
     """
     # 1. Data Cleaning: Remove rows where essential metrics or grouping labels are missing.
     # Using .copy() ensures we don't accidentally modify the original source DataFrame.
-    clean_df = df.dropna(subset=['Visits_Per_Station', group_col]).copy()
+    clean_df = df.dropna(subset=['visits_per_station', group_col]).copy()
     
     # 2. Validation: Check if the resulting dataset is empty. 
     # This prevents the program from crashing during plotting if no valid data exists.
@@ -404,7 +404,7 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
     
     # 3. Numerical Computing: Aggregate data to find the average visit burden per category.
     # Sorting descending provides an immediate insight into which categories have the highest load.
-    avg_load = clean_df.groupby(group_col)['Visits_Per_Station'].mean().sort_values(ascending=False)
+    avg_load = clean_df.groupby(group_col)['visits_per_station'].mean().sort_values(ascending=False)
     
     print(f"\n--- Statistical Summary: Mean Visits per Station by {group_col} ---")
     print(avg_load.head())
@@ -413,7 +413,7 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
     # Boxplots are chosen over simple bar charts because they visualize the full distribution,
     # including the median, quartiles, and outliers within each hospital category.
     fig = plt.figure(figsize=(12, 6))
-    sns.boxplot(data=clean_df, x=group_col, y='Visits_Per_Station', palette="viridis")
+    sns.boxplot(data=clean_df, x=group_col, y='visits_per_station', palette="viridis")
     
     # 5. Aesthetic Polishing: Set titles, labels, and rotate x-axis text for readability.
     # Tight_layout is used to ensure labels do not get cut off when the image is saved.
@@ -422,25 +422,28 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'Hospital
     plt.ylabel('Visits per Station')
     plt.tight_layout()
     
-    # 6. File I/O & Error Handling: Construct path and save the image safely.
-    # Using Path objects handles slashes correctly across different operating systems.
-    output_path = Path(output_dir) / f"load_distribution_{group_col}.png"
-    try:
-        # Ensure the target directory exists (mkdir) before attempting to write the file.
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(output_path)
-        plt.close(fig)  # Explicitly close the figure to free up system memory after the file is saved.
-        print(f"\nSuccess: Distribution plot saved to {output_path}")
-    except PermissionError as e:
-        # Handle cases where the data folder is locked or read-only.
-        print(f"Error: Permission denied when creating directory or saving file: {e}")
+    if save:
+        # 6. File I/O & Error Handling: Construct path and save the image safely.
+        # Using Path objects handles slashes correctly across different operating systems.
+        output_path = Path(output_dir) / f"load_distribution_{group_col}.png"
+        try:
+            # Ensure the target directory exists (mkdir) before attempting to write the file.
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            plt.savefig(output_path)
+            plt.close(fig)  # Explicitly close the figure to free up system memory after the file is saved.
+            print(f"\nSuccess: Distribution plot saved to {output_path}")
+        except PermissionError as e:
+            # Handle cases where the data folder is locked or read-only.
+            print(f"Error: Permission denied when creating directory or saving file: {e}")
+            plt.close(fig)
+            raise
+        except Exception as e:
+            # Catch-all for other I/O issues (e.g., disk full) to provide a clear error message.
+            print(f"Error: Failed to save plot: {e}")
+            plt.close(fig)
+            raise
+    else:
         plt.close(fig)
-        raise
-    except Exception as e:
-        # Catch-all for other I/O issues (e.g., disk full) to provide a clear error message.
-        print(f"Error: Failed to save plot: {e}")
-        plt.close(fig)
-        raise
 
 def year_range(csv_file:str)->tuple[int,int]:
     df=pd.read_csv(csv_file)
@@ -609,7 +612,7 @@ from folium.plugins import MarkerCluster
 import pandas as pd
 
 # Urban vs rural disparity dashboard
-def plot_urban_rural_map(state: str) -> folium.Map:
+def plot_urban_rural_map(state: str, save: bool = False) -> folium.Map:
     """Downloads emergency data for a given state and displays hospital
 
     locations on an interactive map.
@@ -621,7 +624,7 @@ def plot_urban_rural_map(state: str) -> folium.Map:
     df = download_emergency_data(state)
 
     # Check if required columns exist in the downloaded dataset
-    required_cols = ["LATITUDE", "LONGITUDE", "UrbanRuralDesi", "FacilityName2"]
+    required_cols = ["latitude", "longitude", "urban_rural_designation", "facility_name"]
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
         raise ValueError(
@@ -629,26 +632,26 @@ def plot_urban_rural_map(state: str) -> folium.Map:
         )
 
     # Drop rows where coordinates are missing
-    map_data = df.dropna(subset=["LATITUDE", "LONGITUDE"]).copy()
+    map_data = df.dropna(subset=["latitude", "longitude"]).copy()
 
     # Convert coordinates to numeric, handling errors
-    map_data["LATITUDE"] = pd.to_numeric(map_data["LATITUDE"], errors="coerce")
-    map_data["LONGITUDE"] = pd.to_numeric(
-        map_data["LONGITUDE"], errors="coerce"
+    map_data["latitude"] = pd.to_numeric(map_data["latitude"], errors="coerce")
+    map_data["longitude"] = pd.to_numeric(
+        map_data["longitude"], errors="coerce"
     )
-    map_data = map_data.dropna(subset=["LATITUDE", "LONGITUDE"])
+    map_data = map_data.dropna(subset=["latitude", "longitude"])
 
     print(f"Total raw hospital records: {len(map_data)}")
     
     # Group by coordinates and combine hospital names and area types
     map_data = (
-        map_data.groupby(["LATITUDE", "LONGITUDE"])
+        map_data.groupby(["latitude", "longitude"])
         .agg(
             {
-                "FacilityName2": lambda x: "<br>".join(
+                "facility_name": lambda x: "<br>".join(
                     x.dropna().astype(str).unique()
                 ),
-                "UrbanRuralDesi": "first",
+                "urban_rural_designation": "first",
             }
         )
         .reset_index()
@@ -664,8 +667,8 @@ def plot_urban_rural_map(state: str) -> folium.Map:
         return None
 
     # Initialize map at the mean center of all hospitals
-    center_lat = map_data["LATITUDE"].mean()
-    center_lon = map_data["LONGITUDE"].mean()
+    center_lat = map_data["latitude"].mean()
+    center_lon = map_data["longitude"].mean()
 
     m = folium.Map(location=[center_lat, center_lon], zoom_start=7)
 
@@ -677,8 +680,8 @@ def plot_urban_rural_map(state: str) -> folium.Map:
 
      # Iterate through each unique location and add colored markers
     for _, row in map_data.iterrows():
-        hospital_names = row["FacilityName2"]
-        area_type = str(row["UrbanRuralDesi"]).strip().lower()
+        hospital_names = row["facility_name"]
+        area_type = str(row["urban_rural_designation"]).strip().lower()
         
         # Assign colors and icons based on Urban/Rural status
 
@@ -693,24 +696,25 @@ def plot_urban_rural_map(state: str) -> folium.Map:
             marker_icon = "info-sign"
 
         folium.Marker(
-            location=[row["LATITUDE"], row["LONGITUDE"]],
-            popup=f"<b>Hospital(s):</b><br>{hospital_names}<br><b>Type:</b> {row['UrbanRuralDesi']}",
+            location=[row["latitude"], row["longitude"]],
+            popup=f"<b>Hospital(s):</b><br>{hospital_names}<br><b>Type:</b> {row['urban_rural_designation']}",
             icon=folium.Icon(color=marker_color, icon=marker_icon),
         ).add_to(marker_cluster)
     
-    # Save the map to an HTML file
-    output_dir = Path("data")
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir / f"urban_rural_map_{state}.html"
-        m.save(str(output_path))
-        print(f"\nSuccess: Map saved to {output_path}")
-    except PermissionError as e:
-        print(f"Error: Permission denied when creating directory or saving file: {e}")
-        raise
-    except Exception as e:
-        print(f"Error: Failed to save map: {e}")
-        raise
+    if save:
+        # Save the map to an HTML file
+        output_dir = Path("data")
+        try:
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_path = output_dir / f"urban_rural_map_{state}.html"
+            m.save(str(output_path))
+            print(f"\nSuccess: Map saved to {output_path}")
+        except PermissionError as e:
+            print(f"Error: Permission denied when creating directory or saving file: {e}")
+            raise
+        except Exception as e:
+            print(f"Error: Failed to save map: {e}")
+            raise
 
     return m
 
