@@ -842,20 +842,31 @@ def calculate_growth(df, value_col, group_cols, time_col="year", pct=True):
    return df
 
 
-def county_facility_counts(csv_file, county_col="CountyName", facility_col="FacilityName2"):
-    df = pd.read_csv(csv_file)
-    
+def county_facility_counts(
+    df: pd.DataFrame,
+    county_col: str = "CountyName",
+    facility_col: str = "FacilityName2"
+) -> pd.DataFrame:
     required = [county_col, facility_col]
     missing = [col for col in required if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
-    
+
     df = df.copy()
     df = df.dropna(subset=[county_col, facility_col])
-    counts = df.groupby(county_col)[facility_col].nunique().reset_index()
-    counts = counts.rename(columns={facility_col: "facility_count"})
-    
-    return counts.sort_values(by="facility_count", ascending=False).reset_index(drop=True)
+
+    counts = (
+        df.groupby(county_col)[facility_col]
+        .nunique()
+        .reset_index()
+        .rename(columns={facility_col: "facility_count"})
+    )
+
+    return counts.sort_values(
+        by="facility_count",
+        ascending=False
+    ).reset_index(drop=True)
+
 
 def spike_frequency_pivot(
     df: pd.DataFrame,
@@ -875,24 +886,20 @@ def spike_frequency_pivot(
         Pivot table with Category as index and 'spike_count' as column,
         sorted by spike frequency descending.
     """
-
-    # --- 1. Compute year-over-year % change per facility + category ---
     df = df.copy()
 
-    df['yoy_pct_change'] = (
-        df.sort_values('year')
-          .groupby(['FacilityName2', 'Category'])['Visits_Per_Station']
+    df["yoy_pct_change"] = (
+        df.sort_values("year")
+          .groupby(["FacilityName2", "Category"])["Visits_Per_Station"]
           .pct_change() * 100
     )
 
-    # --- 2. Flag spikes ---
-    df['is_spike'] = (df['yoy_pct_change'] >= threshold_pct).astype(int)
+    df["is_spike"] = (df["yoy_pct_change"] >= threshold_pct).astype(int)
 
-    # --- 3. Pivot: rows = Category, value = total spike count ---
     pivot = df.pivot_table(
-        index='Category',
-        values='is_spike',
-        aggfunc='sum'
-    ).rename(columns={'is_spike': 'spike_count'})
+        index="Category",
+        values="is_spike",
+        aggfunc="sum"
+    ).rename(columns={"is_spike": "spike_count"})
 
-    return pivot.sort_values('spike_count', ascending=False)
+    return pivot.sort_values("spike_count", ascending=False)
