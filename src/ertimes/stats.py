@@ -346,20 +346,49 @@ def find_duplicates(
     Parameters
     ----------
     df : pd.DataFrame
-        Input DataFrame.
+        Input DataFrame to check for duplicate rows.
+
     subset : list[str] | None
         Columns to check duplicates on.
+        If None, all columns are used.
 
     Returns
     -------
     pd.DataFrame
-        Duplicate rows.
+        A DataFrame containing all rows that are duplicates
+        of another row in the input DataFrame.
+
+    Raises
+    ------
+    TypeError
+        If df is not a pandas DataFrame.
+
+    ValueError
+        If any column in subset does not exist in df.
+
+    Examples
+    --------
+    >>> df = pd.DataFrame({
+    ...     "A": [1, 2, 2],
+    ...     "B": [3, 4, 4]
+    ... })
+    >>> find_duplicates(df)
+       A  B
+    1  2  4
+    2  2  4
+
+    >>> find_duplicates(df, subset=["A"])
+       A  B
+    1  2  4
+    2  2  4
     """
 
     if not isinstance(df, pd.DataFrame):
+        # Ensure input is a pandas DataFrame
         raise TypeError("df must be a pandas DataFrame")
 
     if subset is not None:
+        # Check that all requested columns exist
         missing = [col for col in subset if col not in df.columns]
         if missing:
             raise ValueError(f"Missing columns: {missing}")
