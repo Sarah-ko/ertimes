@@ -2,7 +2,7 @@ from pathlib import Path
 
 from ertimes.health_conditions_bar import plot_category_visits
 from ertimes.io import download_emergency_data, load_emergency_data
-from ertimes.stats import find_capacity_volume_mismatch, plot_hospital_load_distribution
+from ertimes.stats import find_capacity_volume_mismatch, plot_hospital_load_distribution, plot_urban_rural_map
 import pandas as pd
 
 
@@ -23,22 +23,21 @@ print("Downloading data for test...")
 df = download_emergency_data("california")
 
 print("Generating plot...")
-plot_hospital_load_distribution(df, group_col='HospitalOwnership')
+plot_hospital_load_distribution(df, group_col='hospital_ownership', save=True)
 
-print("Check your 'data/' folder for the new .png file!")
+print("Generating urban-rural map...")
+plot_urban_rural_map("california", save=True)
+
+print("Check your 'data/' folder for the new files!")
 
 #test for health conditions bar plot
-def demo_plot_category_visits_local() -> None:
-    """Load local raw CSV emergency data and render the category visits plot."""
-    local_data_path = Path("data") / "Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv"
-    if not local_data_path.exists() and "__file__" in globals():
-        local_data_path = Path(__file__).resolve().parent / "data" / "Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv"
+def demo_plot_category_visits_downloaded() -> None:
+    """Download emergency data for California and render the category visits plot."""
+    print("Downloading emergency data for California...")
+    df = download_emergency_data("california")
 
-    print(f"Loading local emergency data from: {local_data_path}")
-    df = pd.read_csv(local_data_path)
-
-    print("Generating category visits plot from local data...")
-    plot_category_visits(df)
+    print("Generating category visits plot from downloaded data...")
+    plot_category_visits(df, save=True)
 
 
-demo_plot_category_visits_local()
+demo_plot_category_visits_downloaded()
