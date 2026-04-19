@@ -109,4 +109,10 @@ Run tests with coverage using:
 python -m pytest tests/ -v --cov=ertimes --cov-report=term-missing --cov-report=xml
 ```
 
+Run tests without coverage using:
+
+```bash
+python -m pytest tests/ -v
+```
+
 ---
