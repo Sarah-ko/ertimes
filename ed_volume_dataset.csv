@@ -1,5 +1,0 @@
-ed_id,ed_name,latitude,longitude,year,total_ed_visits,county,primary_care_shortage,mental_health_shortage
-1,UVA Hospital,38.03,-78.5,2021,70000,Charlottesville,Yes,Yes
-2,Sentara Martha Jefferson,38.03,-78.48,2022,35000,Charlottesville,No,Yes
-3,Augusta Health,38.08,-78.99,2022,25000,Augusta,Yes,No
-4,Carilion Roanoke,37.27,-79.94,2023,60000,Roanoke,No,Yes
