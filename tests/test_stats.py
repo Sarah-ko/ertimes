@@ -259,6 +259,40 @@ def test_per_category_burden_missing_column():
     with pytest.raises(KeyError):
         stats.per_category_burden_report(df)
 
+
+def test_rank_hospitals_by_visits_per_station_basic():
+    df = pd.DataFrame({
+        "facility_name": ["H1", "H2", "H3", "H1"],
+        "visits_per_station": [10, 30, 20, 30],
+    })
+
+    result = stats.rank_hospitals_by_visits_per_station(df)
+
+    # H1 median of [10, 30] = 20; H2 = 30; H3 = 20
+    # Sorted descending: H2 (30), then H1 (20), then H3 (20)
+    assert list(result["facility_name"]) == ["H2", "H1", "H3"]
+    assert result.loc[0, "visits_per_station"] == 30
+
+
+def test_rank_hospitals_by_visits_per_station_mean_and_top_n():
+    df = pd.DataFrame({
+        "facility_name": ["A", "B", "C", "A"],
+        "visits_per_station": [10, 40, 30, 50],
+    })
+
+    # Using mean aggregation: A=(10+50)/2=30, B=40, C=30
+    # Sorted: B (40), A (30), C (30)
+    # top_n=2 gives [B, A]
+    result = stats.rank_hospitals_by_visits_per_station(df, agg="mean", top_n=2)
+    assert len(result) == 2
+    assert list(result["facility_name"]) == ["B", "A"]
+
+
+def test_rank_hospitals_by_visits_per_station_missing_columns():
+    df = pd.DataFrame({"X": [1, 2]})
+    with pytest.raises(ValueError):
+        stats.rank_hospitals_by_visits_per_station(df)
+
 #pytest for health_conditions_bar.py 
 from io import StringIO
 from ertimes.health_conditions_bar import plot_category_visits
@@ -761,3 +795,90 @@ def test_run_er_analysis(monkeypatch):
     assert "YoY_Visits" in result.columns
     assert "Utilization" in result.columns
     assert "Mismatch" in result.columns
+
+
+# ============================================================================
+# Tests for county_facility_counts()
+# ============================================================================
+
+def test_county_facility_counts_basic():
+    """Test basic functionality: counts unique facilities per county."""
+    df = pd.DataFrame({
+        "CountyName": ["Alameda", "Alameda", "Fresno", "Fresno", "Fresno"],
+        "FacilityName2": ["HospA", "HospB", "HospC", "HospD", "HospC"],
+    })
+    
+    result = stats.county_facility_counts(df)
+    
+    assert len(result) == 2
+    # Fresno: HospC, HospD, HospC (counted as 2 unique)
+    # Alameda: HospA, HospB (2 unique)
+    assert result.iloc[0]["facility_count"] == 2  # Fresno (3 rows but 2 unique facilities)
+    assert result.iloc[1]["facility_count"] == 2  # Alameda
+
+
+def test_county_facility_counts_sorted_descending():
+    """Test that results are sorted by facility_count descending."""
+    df = pd.DataFrame({
+        "CountyName": ["A", "A", "B", "B", "B", "B"],
+        "FacilityName2": ["H1", "H2", "H3", "H4", "H5", "H6"],
+    })
+    
+    result = stats.county_facility_counts(df)
+    
+    assert (result["facility_count"] == result["facility_count"].sort_values(ascending=False)).all()
+
+
+def test_county_facility_counts_missing_columns():
+    """Test that missing required columns raise ValueError."""
+    df = pd.DataFrame({
+        "County": ["Alameda"],
+        "Facility": ["HospA"],
+    })
+    
+    with pytest.raises(ValueError, match="Missing required columns"):
+        stats.county_facility_counts(df)
+
+
+def test_county_facility_counts_custom_columns():
+    """Test with custom column names."""
+    df = pd.DataFrame({
+        "Region": ["North", "North", "South"],
+        "Hospital": ["H1", "H2", "H3"],
+    })
+    
+    result = stats.county_facility_counts(
+        df,
+        county_col="Region",
+        facility_col="Hospital"
+    )
+    
+    assert "Region" in result.columns
+    assert len(result) == 2
+
+
+def test_county_facility_counts_handles_na():
+    """Test that NaN values are dropped from grouping."""
+    df = pd.DataFrame({
+        "CountyName": ["Alameda", "Alameda", None, "Fresno"],
+        "FacilityName2": ["HospA", "HospB", "HospC", "HospD"],
+    })
+    
+    result = stats.county_facility_counts(df)
+    
+    # Should only have Alameda and Fresno (not NaN county)
+    assert len(result) == 2
+    assert None not in result["CountyName"].values
+
+
+def test_county_facility_counts_duplicates_not_counted():
+    """Test that duplicate facilities in a county are counted once (using nunique)."""
+    df = pd.DataFrame({
+        "CountyName": ["Alameda", "Alameda", "Alameda"],
+        "FacilityName2": ["HospA", "HospA", "HospB"],
+    })
+    
+    result = stats.county_facility_counts(df)
+    
+    # Should have 2 unique facilities (HospA counted once, HospB counted once)
+    assert result.iloc[0]["facility_count"] == 2
