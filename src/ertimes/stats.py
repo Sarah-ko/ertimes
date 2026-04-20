@@ -116,12 +116,11 @@ def rank_counties_by_burden(summary: pd.DataFrame) -> pd.DataFrame:
 
     return ranked
 
-<<<<<<< HEAD
 
 def rank_hospitals_by_visits_per_station(
     df: pd.DataFrame,
-    facility_col: str = "FacilityName2",
-    visits_col: str = "Visits_Per_Station",
+    facility_col: str = "facility_name",
+    visits_col: str = "visits_per_station",
     agg: str = "median",
     top_n: int | None = None,
 ) -> pd.DataFrame:
@@ -133,15 +132,52 @@ def rank_hospitals_by_visits_per_station(
     df : pd.DataFrame
         Input dataframe containing facility identifier and visits per station.
     facility_col : str
-        Column name for facility identifier. Default 'FacilityName2'.
+        Column name for facility identifier. Default 'facility_name'.
     visits_col : str
-        Column name containing visits-per-station values. Default 'Visits_Per_Station'.
+        Column name containing visits-per-station values. Default 'visits_per_station'.
     agg : str
         Aggregation to use when there are multiple rows per facility. One of
         'median' or 'mean'. Default 'median'.
     top_n : int | None
         If provided, return only the top_n facilities.
-=======
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns [facility_col, 'visits_per_station', 'rank'] sorted
+        by 'visits_per_station' descending.
+    """
+
+    if facility_col not in df.columns or visits_col not in df.columns:
+        missing = [c for c in (facility_col, visits_col) if c not in df.columns]
+        raise ValueError(f"Missing required columns: {missing}")
+
+    if agg not in ("median", "mean"):
+        raise ValueError("agg must be 'median' or 'mean'")
+
+    working = df[[facility_col, visits_col]].copy()
+    working[visits_col] = pd.to_numeric(working[visits_col], errors="coerce")
+
+    # Aggregate per facility
+    if agg == "median":
+        grouped = working.groupby(facility_col, dropna=False)[visits_col].median()
+    else:
+        grouped = working.groupby(facility_col, dropna=False)[visits_col].mean()
+
+    result = grouped.reset_index().rename(columns={visits_col: "visits_per_station"})
+
+    # Sort with NaNs last
+    result = result.sort_values(by="visits_per_station", ascending=False, na_position="last").reset_index(drop=True)
+
+    # Add rank (1-based). Ties receive the same rank using dense ranking
+    result["rank"] = result["visits_per_station"].rank(method="dense", ascending=False).astype(int)
+
+    if top_n is not None:
+        result = result.head(top_n).reset_index(drop=True)
+
+    return result
+
+
 def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFrame:
     """
     Return a one-row county report from a county summary DataFrame.
@@ -191,7 +227,23 @@ def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFr
         result = result.head(top_n).reset_index(drop=True)
 
     return result
-=======
+
+
+def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFrame:
+    """
+    Return a one-row county report from a county summary DataFrame.
+
+    Parameters
+    ----------
+    summary : pd.DataFrame
+        DataFrame containing county-level metrics, such as the output of
+        county_capacity_summary().
+    county_name : str
+        Name of the county to report.
+
+    Returns
+    -------
+    pd.DataFrame
         One-row DataFrame containing the selected county's summary metrics.
 
     Raises
@@ -216,7 +268,7 @@ def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFr
         raise ValueError(f"No county found with name '{county_name}'")
 
     return report.reset_index(drop=True)
->>>>>>> 07a3c5930e7d0dc865cad0b62c2931803661d5c6
+
 
 def _bed_size_to_numeric(value: object) -> float:
     if pd.isna(value):

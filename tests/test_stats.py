@@ -262,22 +262,22 @@ def test_per_category_burden_missing_column():
 
 def test_rank_hospitals_by_visits_per_station_basic():
     df = pd.DataFrame({
-        "FacilityName2": ["H1", "H2", "H3", "H1"],
-        "Visits_Per_Station": [10, 30, 20, 30],
+        "facility_name": ["H1", "H2", "H3", "H1"],
+        "visits_per_station": [10, 30, 20, 30],
     })
 
     result = stats.rank_hospitals_by_visits_per_station(df)
 
     # H1 median of [10, 30] = 20; H2 = 30; H3 = 20
     # Sorted descending: H2 (30), then H1 (20), then H3 (20)
-    assert list(result["FacilityName2"]) == ["H2", "H1", "H3"]
+    assert list(result["facility_name"]) == ["H2", "H1", "H3"]
     assert result.loc[0, "visits_per_station"] == 30
 
 
 def test_rank_hospitals_by_visits_per_station_mean_and_top_n():
     df = pd.DataFrame({
-        "FacilityName2": ["A", "B", "C", "A"],
-        "Visits_Per_Station": [10, 40, 30, 50],
+        "facility_name": ["A", "B", "C", "A"],
+        "visits_per_station": [10, 40, 30, 50],
     })
 
     # Using mean aggregation: A=(10+50)/2=30, B=40, C=30
@@ -285,7 +285,7 @@ def test_rank_hospitals_by_visits_per_station_mean_and_top_n():
     # top_n=2 gives [B, A]
     result = stats.rank_hospitals_by_visits_per_station(df, agg="mean", top_n=2)
     assert len(result) == 2
-    assert list(result["FacilityName2"]) == ["B", "A"]
+    assert list(result["facility_name"]) == ["B", "A"]
 
 
 def test_rank_hospitals_by_visits_per_station_missing_columns():
