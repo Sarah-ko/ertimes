@@ -1019,7 +1019,16 @@ def spike_frequency_pivot(
     category_col: str = 'Category',
     visits_col: str = 'Visits_Per_Station'
 ) -> pd.DataFrame:
+    """
+    Build a pivot table of spike frequency aggregated by visit category.
 
+    A spike is defined as a year-over-year increase in visits per station
+    that meets or exceeds threshold_pct for a given facility and category.
+    Spike counts are summed across all facilities, so the result reflects
+    how often each category experiences high-growth periods across the
+    entire dataset.
+    """
+        
     df = df.copy()
 
     df['yoy_pct_change'] = (

@@ -531,38 +531,6 @@ def make_pivot_test_df(records: list[dict]) -> pd.DataFrame:
     }
     return pd.DataFrame([{**defaults, **r} for r in records])
 
-def test_smoke_real_data():
-    """End-to-end smoke test: no NaN spike counts on live downloaded California data."""
-    df = download_emergency_data("california")
-    result = spike_frequency_pivot(
-        df,
-        threshold_pct=20.0,
-        facility_col='facility_name',
-        category_col='category',
-        visits_col='visits_per_station'
-    )
-    assert not result.isna().any().any()
-    assert result['spike_count'].sum() > 0
-
-def test_all_categories_present():
-    """Both categories in the input must appear as rows in the pivot output."""
-    df = make_pivot_test_df([
-        {'Category': 'Diabetes',      'year': 2021, 'Visits_Per_Station': 100},
-        {'Category': 'Diabetes',      'year': 2022, 'Visits_Per_Station': 200},
-        {'Category': 'Mental Health', 'year': 2021, 'Visits_Per_Station': 100},
-        {'Category': 'Mental Health', 'year': 2022, 'Visits_Per_Station': 105},
-    ])
-    result = spike_frequency_pivot(df)
-    assert set(result.index) == {'Diabetes', 'Mental Health'}
-
-def test_spike_counted():
-    """A +100% YoY increase must register as one spike."""
-    df = make_pivot_test_df([
-        {'year': 2021, 'Visits_Per_Station': 100},
-        {'year': 2022, 'Visits_Per_Station': 200},
-    ])
-    assert spike_frequency_pivot(df, threshold_pct=20.0).loc['All ED Visits', 'spike_count'] == 1
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -685,6 +653,37 @@ def test_multiple_facilities_spikes_summed():
     ])
     assert spike_frequency_pivot(df).loc['All ED Visits', 'spike_count'] == 2
 
+def test_smoke_real_data():
+    """End-to-end smoke test: no NaN spike counts on live downloaded California data."""
+    df = download_emergency_data("california")
+    result = spike_frequency_pivot(
+        df,
+        threshold_pct=20.0,
+        facility_col='facility_name',
+        category_col='category',
+        visits_col='visits_per_station'
+    )
+    assert not result.isna().any().any()
+    assert result['spike_count'].sum() > 0
+
+def test_all_categories_present():
+    """Both categories in the input must appear as rows in the pivot output."""
+    df = make_pivot_test_df([
+        {'Category': 'Diabetes',      'year': 2021, 'Visits_Per_Station': 100},
+        {'Category': 'Diabetes',      'year': 2022, 'Visits_Per_Station': 200},
+        {'Category': 'Mental Health', 'year': 2021, 'Visits_Per_Station': 100},
+        {'Category': 'Mental Health', 'year': 2022, 'Visits_Per_Station': 105},
+    ])
+    result = spike_frequency_pivot(df)
+    assert set(result.index) == {'Diabetes', 'Mental Health'}
+
+def test_spike_counted():
+    """A +100% YoY increase must register as one spike."""
+    df = make_pivot_test_df([
+        {'year': 2021, 'Visits_Per_Station': 100},
+        {'year': 2022, 'Visits_Per_Station': 200},
+    ])
+    assert spike_frequency_pivot(df, threshold_pct=20.0).loc['All ED Visits', 'spike_count'] == 1
 
 #pytests for summarize_by_ownership function
 from ertimes.stats import summarize_by_ownership 
