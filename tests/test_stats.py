@@ -892,3 +892,28 @@ def test_county_facility_counts_duplicates_not_counted():
     
     # Should have 2 unique facilities (HospA counted once, HospB counted once)
     assert result.iloc[0]["facility_count"] == 2
+
+#testing another scenario for percent growth 
+
+def test_calculate_growth_percent_multiple_groups():
+    df = pd.DataFrame({
+        "oshpd_id": [1, 1, 1, 2, 2],
+        "year": [2020, 2021, 2022, 2020, 2021],
+        "Tot_ED_NmbVsts": [100, 150, 300, 200, 100]
+    })
+
+    result = stats.calculate_growth(
+        df,
+        value_col="Tot_ED_NmbVsts",
+        group_cols=["oshpd_id"],
+        pct=True
+    )
+
+    # Group 1 expectations
+    assert np.isnan(result.loc[result["year"] == 2020].iloc[0]["growth"])
+    assert result.loc[(result["oshpd_id"] == 1) & (result["year"] == 2021), "growth"].iloc[0] == 50
+    assert result.loc[(result["oshpd_id"] == 1) & (result["year"] == 2022), "growth"].iloc[0] == 100
+
+    # Group 2 expectations
+    assert np.isnan(result.loc[(result["oshpd_id"] == 2) & (result["year"] == 2020), "growth"].iloc[0])
+    assert result.loc[(result["oshpd_id"] == 2) & (result["year"] == 2021), "growth"].iloc[0] == -50
