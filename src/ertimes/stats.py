@@ -899,36 +899,26 @@ def county_facility_counts(
 
 def spike_frequency_pivot(
     df: pd.DataFrame,
-    threshold_pct: float = 20.0
+    threshold_pct: float = 20.0,
+    facility_col: str = 'FacilityName2',
+    category_col: str = 'Category',
+    visits_col: str = 'Visits_Per_Station'
 ) -> pd.DataFrame:
-    """
-    Builds a pivot table of spike frequency aggregated by category.
 
-    A spike is a year-over-year increase in Visits_Per_Station that
-    meets or exceeds threshold_pct for a given facility + category.
-
-    Parameters:
-        df            : Raw hospital DataFrame
-        threshold_pct : Minimum % YoY increase to count as a spike
-
-    Returns:
-        Pivot table with Category as index and 'spike_count' as column,
-        sorted by spike frequency descending.
-    """
     df = df.copy()
 
-    df["yoy_pct_change"] = (
-        df.sort_values("year")
-          .groupby(["FacilityName2", "Category"])["Visits_Per_Station"]
-          .pct_change() * 100
+    df['yoy_pct_change'] = (
+        df.sort_values('year')
+          .groupby([facility_col, category_col])[visits_col]
+          .pct_change(fill_method=None) * 100
     )
 
-    df["is_spike"] = (df["yoy_pct_change"] >= threshold_pct).astype(int)
+    df['is_spike'] = (df['yoy_pct_change'] >= threshold_pct).astype(int)
 
     pivot = df.pivot_table(
-        index="Category",
-        values="is_spike",
-        aggfunc="sum"
-    ).rename(columns={"is_spike": "spike_count"})
+        index=category_col,
+        values='is_spike',
+        aggfunc='sum'
+    ).rename(columns={'is_spike': 'spike_count'})
 
-    return pivot.sort_values("spike_count", ascending=False)
+    return pivot.sort_values('spike_count', ascending=False)
