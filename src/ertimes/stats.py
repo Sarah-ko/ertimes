@@ -334,12 +334,64 @@ def find_capacity_volume_mismatch(
     low_capacity_quantile: float = 0.25,
     min_visits: int | None = None,
 ) -> pd.DataFrame:
+    """
+    Identify facilities where visit volume appears high relative to capacity.
+
+    This function calculates percentile rankings for visit volume,
+    number of ED stations, and licensed bed size. It combines the
+    station and bed percentiles into a capacity percentile and
+    compares this to visit demand to calculate a mismatch score.
+    Facilities with high visit demand and low capacity are flagged.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame containing facility-level emergency department data.
+
+    visit_col : str, default="total_ed_visits"
+        Column containing total ED visit counts.
+
+    stations_col : str, default="ed_stations"
+        Column containing number of ED stations.
+
+    bed_col : str, default="licensed_bed_size"
+        Column containing licensed bed size values.
+
+    facility_col : str, default="facility_name"
+        Column identifying facility names.
+
+    county_col : str, default="county_name"
+        Column identifying county names.
+
+    year_col : str, default="year"
+        Column identifying year values.
+
+    high_visit_quantile : float, default=0.75
+        Percentile threshold used to define high visit volume.
+
+    low_capacity_quantile : float, default=0.25
+        Percentile threshold used to define low capacity.
+
+    min_visits : int or None, default=None
+        Optional minimum visit filter.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing facilities flagged as potential
+        capacity-volume mismatches, sorted by mismatch score.
+    """
+
+    # Clean dataset before processing
     df = clean_data(df)
+
+    # Verify required columns exist
     required_cols = [visit_col, stations_col, bed_col, facility_col]
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
+    # Validate percentile inputs
     if not 0 < high_visit_quantile < 1:
         raise ValueError("high_visit_quantile must be between 0 and 1")
 
@@ -348,20 +400,25 @@ def find_capacity_volume_mismatch(
 
     working = df.copy()
 
+    # Convert relevant columns to numeric format
     working["bed_size_numeric"] = working[bed_col].apply(_bed_size_to_numeric)
     working[visit_col] = pd.to_numeric(working[visit_col], errors="coerce")
     working[stations_col] = pd.to_numeric(working[stations_col], errors="coerce")
 
+    # Remove rows with missing required numeric values
     working = working.dropna(
         subset=[visit_col, stations_col, "bed_size_numeric"]
     ).copy()
 
+    # Optionally filter out low-volume facilities
     if min_visits is not None:
         working = working[working[visit_col] >= min_visits].copy()
 
+    # Return early if no data remains
     if working.empty:
         return working
 
+    # Calculate percentile rankings for visits and capacity metrics
     working["visit_percentile"] = working[visit_col].rank(
         pct=True, method="average"
     )
@@ -372,19 +429,23 @@ def find_capacity_volume_mismatch(
         pct=True, method="average"
     )
 
+    # Combine station and bed percentiles into overall capacity measure
     working["capacity_percentile"] = (
         working["station_percentile"] + working["bed_percentile"]
     ) / 2.0
 
+    # Calculate mismatch score (higher means more demand than capacity)
     working["mismatch_score"] = (
         working["visit_percentile"] - working["capacity_percentile"]
     )
 
+    # Flag facilities with high demand and low capacity
     flagged = working[
         (working["visit_percentile"] >= high_visit_quantile)
         & (working["capacity_percentile"] <= low_capacity_quantile)
     ].copy()
 
+    # Select output columns dynamically
     output_cols = [
         facility_col,
         county_col if county_col in flagged.columns else None,
@@ -401,6 +462,7 @@ def find_capacity_volume_mismatch(
     ]
     output_cols = [col for col in output_cols if col is not None]
 
+    # Return sorted results
     return flagged[output_cols].sort_values(
         by="mismatch_score", ascending=False
     ).reset_index(drop=True)
