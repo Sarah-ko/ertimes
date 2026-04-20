@@ -101,10 +101,18 @@ ertimes/
 
 # Testing
 
-Run tests using:
+![Coverage](coverage-badge.svg)
+
+Run tests with coverage using:
 
 ```bash
-pytest
+python -m pytest tests/ -v --cov=ertimes --cov-report=term-missing --cov-report=xml
+```
+
+Run tests without coverage using:
+
+```bash
+python -m pytest tests/ -v
 ```
 
 ---
