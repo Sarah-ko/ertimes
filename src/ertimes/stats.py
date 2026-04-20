@@ -271,23 +271,53 @@ def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFr
 
 
 def _bed_size_to_numeric(value: object) -> float:
+    """
+    Convert a hospital bed size value into a numeric value.
+
+    This function standardizes bed size values that may appear
+    in different formats in the dataset. Supported formats include:
+
+    - Missing values (returns np.nan)
+    - Values ending with "+" (e.g., "200+")
+    - Ranges (e.g., "50-99"), converted to the midpoint
+
+    Parameters
+    ----------
+    value : object
+        Bed size value from the dataset.
+
+    Returns
+    -------
+    float
+        Numeric representation of the bed size,
+        or np.nan if conversion is not possible.
+    """
+    # Return NaN if the value is missing
     if pd.isna(value):
         return np.nan
 
+    # Convert value to string and remove whitespace
     text = str(value).strip()
 
+    # Handle values ending with "+" (e.g., "200+")
     if text.endswith("+"):
-        number = text[:-1]
+        number = text[:-1] # Remove "+"
         if number.isdigit():
             return float(number)
+        
+        # If remaining text is not numeric, return NaN
         return np.nan
 
+    # Handle ranges like "50-99"
     match = re.fullmatch(r"(\d+)\s*-\s*(\d+)", text)
     if match:
         low = float(match.group(1))
         high = float(match.group(2))
+
+        # Return midpoint of the range
         return (low + high) / 2.0
 
+    # Return NaN if format is not recognized
     return np.nan
 
 
