@@ -690,17 +690,20 @@ def test_multiple_facilities_spikes_summed():
 from ertimes.stats import summarize_by_ownership 
 
 def test_basic_summary():
-    """Test correct aggregation on simple dataset by comparing actual result v expected"""
+    """Test that function computes group summary stats correctly on a simple dataset
+    
+    checks that grouping works, aggregation applies, and column names are correct with manually computable values"""
 
+    #simple test data with 2 ownership groups
     df = pd.DataFrame({
         "HospitalOwnership": ["A", "A", "B", "B"],
         "Tot_ED_NmbVsts": [100, 200, 300, 400],
         "EDStations": [10, 20, 30, 40],
         "Visits_Per_Station": [10, 10, 10, 10]
     })
-
+    #run function
     result = summarize_by_ownership(df)
-
+    #create expected result via manual computation
     expected = pd.DataFrame({
         "HospitalOwnership": ["A", "B"],
         "Tot_ED_NmbVsts_mean": [150.0, 350.0],
@@ -714,12 +717,14 @@ def test_basic_summary():
 
     result = result.sort_values("HospitalOwnership").reset_index(drop=True)
     expected = expected.sort_values("HospitalOwnership").reset_index(drop=True)
-
+    #compare results, testing for structure/value comparison
     pd.testing.assert_frame_equal(result, expected)
 
 def test_sort_order():
-    """Test that output is sorted by visits_perstation_mean descending (ordering by average efficiency)"""
-
+    """Test that output is sorted by visits_perstation_mean descending (ordering by average efficiency)
+    
+    the group with highest visits_perstation_mean should appear first"""
+    #simple data where B has higher efficiency
     df = pd.DataFrame({
         "HospitalOwnership": ["A", "B"],
         "Tot_ED_NmbVsts": [100, 200],
@@ -727,28 +732,32 @@ def test_sort_order():
         "Visits_Per_Station": [5, 20]  
     })
     result = summarize_by_ownership(df)
+    #check that first row is B (the highest efficiency)
     assert result.iloc[0]["HospitalOwnership"] == "B"
 
 def test_missing_col_error():
     """Test that missing any of the required columns raises ValueError for that column"""
-
+    #data with missing required numeric columns
     df = pd.DataFrame({
         "HospitalOwnership": ["A", "B"]
     })
+    #expect error that tells which columns are missing
     with pytest.raises(ValueError, match="Missing required columns"):
         summarize_by_ownership(df)
 
 def test_non_numeric_coercion():
-    """Test coercion of non-numeric values to NaN, and that mean ignores NaN in computation"""
+    """Test that nonnumeric values are handled correctly
+
+    ie) coercion of non-numeric values to NaN, and mean/aggrgation functions ignore NaN in computation"""
 
     df = pd.DataFrame({
         "HospitalOwnership": ["A", "A"],
-        "Tot_ED_NmbVsts": ["100", "bad"],  # 'bad' → NaN
+        "Tot_ED_NmbVsts": ["100", "bad"],  #'bad' → NaN due to nonnumeric coercion
         "EDStations": ["10", "20"],
         "Visits_Per_Station": ["5", "5"]
     })
     result = summarize_by_ownership(df)
-
+    # only 100 should be used in computation, only numeric value 
     assert result.loc[0, "Tot_ED_NmbVsts_mean"] == 100.0
 
 def test_missing_ownership():
@@ -760,11 +769,13 @@ def test_missing_ownership():
         "EDStations": [10, 20],
         "Visits_Per_Station": [10, 10]
     })
-
+    # only A should remain, the only valid ownership group 
     result = summarize_by_ownership(df)
 
     assert len(result) == 1
     assert result.iloc[0]["HospitalOwnership"] == "A"
+
+
 import sys
 
 
