@@ -684,22 +684,23 @@ def run_er_analysis(df, hospital_name=None):
     - Detect mismatches between demand and capacity
     - Generate simple visualizations
     """
+    df = clean_data(df)
 
     # Sort for correct time-series operations
-    df = df.sort_values(["oshpd_id", "year"]).copy()
+    df = df.sort_values(["facility_id", "year"]).copy()
 
     # Year-over-year visits change
     df["YoY_Visits"] = (
-    df.groupby("oshpd_id")["Tot_ED_NmbVsts"]
+    df.groupby("facility_id")["total_ed_visits"]
     .transform(lambda x: x.ffill().pct_change())
 )
 
     # Utilization proxy
-    df["Utilization"] = df["Visits_Per_Station"]
+    df["Utilization"] = df["visits_per_station"]
 
     # FIX: remove deprecated fill_method argument
     df["Utilization_change"] = (
-    df.groupby("oshpd_id")["Utilization"]
+    df.groupby("facility_id")["Utilization"]
     .transform(lambda x: x.ffill().pct_change())
 )
 
@@ -710,7 +711,7 @@ def run_er_analysis(df, hospital_name=None):
 
     # --- Visualization 1: Capacity vs Demand ---
     fig1 = plt.figure()
-    plt.scatter(df["Visits_Per_Station"], df["Tot_ED_NmbVsts"])
+    plt.scatter(df["visits_per_station"], df["total_ed_visits"])
     plt.xlabel("Capacity (Visits per Station)")
     plt.ylabel("Demand (Total Visits)")
     plt.title("Capacity vs Demand")
@@ -720,11 +721,11 @@ def run_er_analysis(df, hospital_name=None):
 
     # --- Visualization 2: Specific hospital trend ---
     if hospital_name:
-        data = df[df["FacilityName2"] == hospital_name]
+        data = df[df["facility_name"] == hospital_name]
 
         if not data.empty:
             fig2 = plt.figure()
-            plt.plot(data["year"], data["Tot_ED_NmbVsts"], marker="o")
+            plt.plot(data["year"], data["total_ed_visits"], marker="o")
             plt.title(f"ER Visits Trend - {hospital_name}")
             plt.xlabel("Year")
             plt.ylabel("Visits")
