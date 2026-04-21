@@ -690,15 +690,39 @@ def year_range(csv_file:str)->tuple[int,int]:
 def plot_facility_trend(df: pd.DataFrame, facility_id: str):
     """
     Plots a time series of ED visits over time for a single facility.
-    """
+    
+    This function filters the dataset for a specified facility, cleans and converts 
+    relevant columns to numeric values, and generates a line plot showing total
+    ED visits over time.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+    DataFrame containing at least 'FacilityName2', 'year', and
+    'Tot_ED_NmbVsts' columns.
+    facility_id : str
+    Name of the facility to plot (must match values in 'FacilityName2').
+    
+    Returns
+    -------
+    matplotlib.figure.Figure
+        A matplotlib Figure object containing the facility trend plot
+        for the specified facility.
 
+    Raises
+    ------------
+    ValueError
+    If required columns are missing, the facility is not found,
+    or no valid numeric data is available.
+    """
+    #Check for required columns
     required_cols = ['FacilityName2', 'year', 'Tot_ED_NmbVsts']
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
     facility_df = df[df['FacilityName2'] == facility_id].copy()
-
+    # Check if facility exists in the dataset after filtering
     if facility_df.empty:
         raise ValueError(f"No data found for facility '{facility_id}'")
 
@@ -712,7 +736,7 @@ def plot_facility_trend(df: pd.DataFrame, facility_id: str):
         raise ValueError(f"No valid numeric data for facility '{facility_id}'")
 
     facility_df = facility_df.sort_values('year')
-
+    # create line plot of total ED visits over time for the specified facility
     plt.figure(figsize=(10, 6))
     sns.lineplot(
         data=facility_df,

@@ -188,6 +188,10 @@ def test_find_duplicates_bad_input_type():
         stats.find_duplicates([1, 2, 3])
 
 def test_plot_facility_trend_returns_figure():
+    """
+    Returns a matplotlib Figure for a valid facility input.
+    """
+
     df = pd.DataFrame({
         'FacilityName2': ['A', 'A'],
         'year': [2020, 2021],
@@ -200,6 +204,9 @@ def test_plot_facility_trend_returns_figure():
 
 
 def test_invalid_facility():
+    """
+    Raises ValueError when the facility is not found.
+    """
     df = pd.DataFrame({
         'FacilityName2': ['A'],
         'year': [2020],
@@ -211,6 +218,9 @@ def test_invalid_facility():
 
 
 def test_missing_columns():
+    """
+    Raises ValueError when required columns are missing.
+    """
     df = pd.DataFrame({
         'FacilityName2': ['A'],
         'year': [2020]
