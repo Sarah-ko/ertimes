@@ -108,6 +108,8 @@ def test_county_capacity_summary(monkeypatch):
 
 
 def test_find_capacity_volume_mismatch_flags_expected_hospital():
+    """Tests that find_capacity_volume_mismatch correctly identifies a hospital with high visits per station and low bed size as a mismatch.
+    """
     df = pd.DataFrame(
         {
             "facility_name": ["A", "B", "C", "D"],
@@ -131,6 +133,8 @@ def test_find_capacity_volume_mismatch_flags_expected_hospital():
 
 
 def test_find_capacity_volume_mismatch_missing_column_raises():
+    """Tests that find_capacity_volume_mismatch raises a ValueError when required columns are missing.
+    """
     df = pd.DataFrame(
         {
             "FacilityName2": ["A"],
@@ -143,6 +147,8 @@ def test_find_capacity_volume_mismatch_missing_column_raises():
 
 
 def test_find_duplicates_basic():
+    """Tests that find_duplicates correctly identifies duplicate rows 
+    based on all columns."""
     df = pd.DataFrame({
         "A": [1, 2, 2],
         "B": ["x", "y", "y"]
@@ -154,6 +160,8 @@ def test_find_duplicates_basic():
 
 
 def test_find_duplicates_subset():
+    """Tests that find_duplicates correctly identifies duplicate rows
+    based on a specified subset of columns."""
     df = pd.DataFrame({
         "A": [1, 2, 2, 2],
         "B": ["x", "y", "z", "y"]
@@ -165,6 +173,9 @@ def test_find_duplicates_subset():
 
 
 def test_find_duplicates_no_duplicates():
+    """Tests that find_duplicates returns an empty DataFrame when 
+    there are no duplicates.
+    """
     df = pd.DataFrame({
         "A": [1, 2, 3]
     })
@@ -175,6 +186,9 @@ def test_find_duplicates_no_duplicates():
 
 
 def test_find_duplicates_bad_subset():
+    """Tests that find_duplicates raises a ValueError when the 
+    specified subset of columns does not exist in the DataFrame.
+    """
     df = pd.DataFrame({
         "A": [1, 2]
     })
@@ -184,10 +198,15 @@ def test_find_duplicates_bad_subset():
 
 
 def test_find_duplicates_bad_input_type():
+    """"Tests that find_duplicates raises a TypeError when the 
+    input is not a DataFrame.
+    """
     with pytest.raises(TypeError):
         stats.find_duplicates([1, 2, 3])
 
 def test_plot_facility_trend_returns_figure():
+    """Tests that plot_facility_trend returns a Matplotlib 
+    figure object when given valid input data."""
     """
     Returns a matplotlib Figure for a valid facility input.
     """
@@ -204,6 +223,8 @@ def test_plot_facility_trend_returns_figure():
 
 
 def test_invalid_facility():
+    """Tests that plot_facility_trend raises a ValueError when 
+    the specified facility is not found in the DataFrame.
     """
     Raises ValueError when the facility is not found.
     """
@@ -218,6 +239,8 @@ def test_invalid_facility():
 
 
 def test_missing_columns():
+    """Tests that plot_facility_trend raises a ValueError when 
+    required columns are missing from the DataFrame."""
     """
     Raises ValueError when required columns are missing.
     """
@@ -233,6 +256,9 @@ import pandas as pd
 from ertimes.stats import mental_health_shortage_analysis
 
 def test_mental_health_shortage_analysis():
+    """Tests that mental_health_shortage_analysis correctly 
+    calculates burden scores and flags high-risk facilities based on 
+    synthetic data."""
     data = {
         'Tot_ED_NmbVsts': [1000, 2000],
         'EDStations': [10, 20],
@@ -248,6 +274,9 @@ def test_mental_health_shortage_analysis():
 
 
 def test_per_category_burden_basic():
+    """Tests that per_category_burden_report correctly groups by category, 
+    sums visits per station, and returns the top N facilities for each 
+    category."""
     df = pd.DataFrame({
         "FacilityName2": ["A", "B", "C"],
         "Category": ["Mental Health", "Mental Health", "Stroke"],
@@ -262,6 +291,9 @@ def test_per_category_burden_basic():
     assert result == expected
 
 def test_per_category_burden_missing_column():
+    """Tests that per_category_burden_report raises a ValueError 
+    when required columns are missing.
+    """
     df = pd.DataFrame({
         "FacilityName2": ["A"],
         "Tot_ED_NmbVsts": [10]  # missing 'Category' and 'Visits_Per_Station'
@@ -271,6 +303,9 @@ def test_per_category_burden_missing_column():
 
 
 def test_rank_hospitals_by_visits_per_station_basic():
+    """Tests that rank_hospitals_by_visits_per_station 
+    correctly ranks facilities by visits per station using the 
+    default median aggregation."""
     df = pd.DataFrame({
         "facility_name": ["H1", "H2", "H3", "H1"],
         "visits_per_station": [10, 30, 20, 30],

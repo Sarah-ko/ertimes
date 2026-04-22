@@ -8,6 +8,11 @@ STATE_URLS = {
 }
 
 def download_emergency_data(state: str) -> pd.DataFrame:
+    """Downloads emergency department data for the specified state, 
+    cleans it, and returns a DataFrame.
+    Note: This function assumes the data is in Excel format and 
+    uses the 'openpyxl' engine to read it.
+    """
     
     state_lower = state.lower()
     

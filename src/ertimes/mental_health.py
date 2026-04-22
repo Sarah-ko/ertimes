@@ -13,6 +13,11 @@ This function highlights facilities that experience both an above-average burden
 """
 
 def mental_health_shortage_analysis(df):
+    """Analyzes the emergency department data to identify facilities that are 
+    at high risk due to a combination of high burden and mental health 
+    resource shortages.
+    The function calculates a burden score for each facility, 
+    determines the average burden, and flags facilities"""
 
     
     # Creates a copy to prevent modifying original dataframe

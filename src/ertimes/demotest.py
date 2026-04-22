@@ -3,6 +3,9 @@ from ertimes.demodata import download_data
 
 
 def test_data_reading(dataset: str) -> bool:
+    """"Tests the ability to read and clean the specified dataset, 
+    printing out key information about the resulting DataFrame.
+    Returns True if successful, False otherwise."""
     try:
         print(f"Attempting to read data for {dataset}...")
         df = download_data(dataset)
