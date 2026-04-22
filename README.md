@@ -1,6 +1,33 @@
 # ertimes
 **ertimes (Emergency Response Times)** is a Python package designed to simplify the analysis of emergency department (ER) volume and capacity datasets. It provides tools for data cleaning, summarization, and visualization to help researchers and analysts better understand patterns in emergency healthcare demand.
 
+# About
+`ertimes` (Emergency Response Times) is a Python package we built to make it easier to work with and analyze emergency department (ED) volume and capacity data.
+
+Emergency healthcare datasets are often messy and inconsistent, which makes it hard to compare hospitals or understand broader system trends. This package helps turn that raw data into a cleaner, more usable format so it’s easier to explore questions about **demand, capacity, and hospital burden**.
+
+In particular, `ertimes` is designed to help answer questions like:
+
+* Which counties or hospitals are experiencing the highest ER demand?
+* Where is patient volume exceeding available capacity?
+* How do utilization patterns vary across facilities and over time?
+* Which areas might be under-resourced relative to demand?
+
+To support this, the package includes a full workflow for:
+
+* **Data cleaning and standardization**, so county and facility names are consistent
+* **Aggregation tools** for summarizing data at the hospital and county level
+* **Capacity analysis**, including metrics like visits per station and mismatch scoring
+* **Ranking functions** to identify high-burden facilities and regions
+* **Visualization tools** to help explore trends and distributions more clearly
+
+The main goal is to make it easier to go from raw emergency department data to meaningful insights without needing a lot of manual preprocessing or repeated analysis code.
+
+This project was originally developed using California emergency department data from data.gov, but it is structured so it can be extended to other states or similar datasets with minimal changes.
+
+Overall, `ertimes` is meant to be a practical toolkit for exploring real-world healthcare capacity issues in a more organized and reproducible way.
+
+
 ---
 
 # Quick Start (How to Run)
