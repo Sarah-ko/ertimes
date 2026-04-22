@@ -1,7 +1,8 @@
 import pandas as pd
 from ertimes.demodata import download_data
 
-
+# Tests whether a dataset can be successfully downloaded and loaded,
+# verifies it is a valid DataFrame, and prints basic structure and content checks
 def test_data_reading(dataset: str) -> bool:
     try:
         print(f"Attempting to read data for {dataset}...")

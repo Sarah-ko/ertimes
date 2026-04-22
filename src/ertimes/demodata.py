@@ -5,7 +5,8 @@ DATA_URLS = {
     "calidemodata": "https://docs.google.com/spreadsheets/d/e/2PACX-1vThWsHWEJm2Kr_HFyesdrkKOcQIkoNqQXBI_wHjeTbrcbXvr4ak3IaDZJkHTzfalTdYbIf0T0mGIMbz/pub?output=csv"
 }
 
-
+# Downloads a supported dataset by name, reads it into a DataFrame,
+# and applies standard cleaning before returning it
 def download_data(dataset: str) -> pd.DataFrame:
     dataset_lower = dataset.lower()
 
@@ -18,7 +19,8 @@ def download_data(dataset: str) -> pd.DataFrame:
 
     return df
 
-
+# Loads data from a local CSV file and applies the same cleaning
+# process to ensure consistency with downloaded datasets
 def load_data(filepath: str) -> pd.DataFrame:
     df = pd.read_csv(filepath)
     df = clean_data(df)

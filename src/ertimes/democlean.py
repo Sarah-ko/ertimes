@@ -10,7 +10,9 @@ COUNTY_COLUMNS = {
     "f": "fcountyamerind",
 }
 
-
+#standardizing county names through making sure everything is treated as a string (in case there are numbers, NaNs, etc.).
+#adds extra spaces at the beginning and end
+#converts everything to lowercase
 def standardize_county_names(series: pd.Series) -> pd.Series:
     return (
         series.astype(str)
