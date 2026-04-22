@@ -36,7 +36,7 @@ def county_capacity_summary(state: str) -> pd.DataFrame:
     ValueError
         If required columns are missing from the dataset.
     """
-    df = download_emergency_data(state).copy()
+    df = download_emergency_data(state).copy() # Load and isolate dataset for safe mutation
 
     # Ensure required columns exist before processing
     required_cols = [
@@ -45,6 +45,7 @@ def county_capacity_summary(state: str) -> pd.DataFrame:
         "ed_stations",
         "licensed_bed_size",
     ]
+    # Ensure dataset has all required fields before analysis
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
@@ -258,15 +259,17 @@ def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFr
         "total_beds",
         "visits_per_station",
     ]
+    # Ensure the summary has all required metrics before filtering
     missing = [col for col in required_cols if col not in summary.columns]
     if missing:
         raise ValueError(f"summary is missing required columns: {missing}")
-
+    # Filter dataset to the requested county
     report = summary[summary["county_name"] == county_name].copy()
-
+    # Validate that the county exists in the dataset
     if report.empty:
         raise ValueError(f"No county found with name '{county_name}'")
 
+    # Return clean one-row result with reset index for consistency
     return report.reset_index(drop=True)
 
 
@@ -681,10 +684,14 @@ def plot_hospital_load_distribution(df: pd.DataFrame, group_col: str = 'hospital
         plt.close(fig)
 
 def year_range(csv_file:str)->tuple[int,int]:
+    # Load the dataset from the provided CSV file path
     df=pd.read_csv(csv_file)
+    # Ensure the dataset contains a 'year' column needed for analysis
     if "year" not in df.columns:
         raise ValueError("CSV must contain a 'year' column")
+    # Convert year values to numeric, forcing invalid entries to NaN
     df["year"]=pd.to_numeric(df["year"],errors="coerce")
+    # Return the minimum and maximum year values as integers
     return int(df["year"].min()),int(df["year"].max())
 
 def plot_facility_trend(df: pd.DataFrame, facility_id: str):
@@ -980,6 +987,7 @@ def plot_urban_rural_map(state: str, save: bool = False) -> folium.Map:
 
 
 def mental_health_shortage_analysis(df):
+    #making a copy of the dataframe
     df = df.copy()
 
     df['Tot_ED_NmbVsts'] = pd.to_numeric(df['Tot_ED_NmbVsts'], errors='coerce')
@@ -988,7 +996,7 @@ def mental_health_shortage_analysis(df):
     df['EDStations'] = df['EDStations'].replace(0, 0.0001)
 
     df['burden_score'] = df['Tot_ED_NmbVsts'] / df['EDStations']
-
+    #average burden score
     avg_burden = df['burden_score'].mean()
 
     df['high_risk'] = (
@@ -1107,21 +1115,23 @@ def county_facility_counts(
     county_col: str = "CountyName",
     facility_col: str = "FacilityName2"
 ) -> pd.DataFrame:
+    # Ensure required columns exist before processing
     required = [county_col, facility_col]
     missing = [col for col in required if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
-
+    # Work on a copy to avoid modifying original data
     df = df.copy()
+    # Remove rows with missing county or facility information
     df = df.dropna(subset=[county_col, facility_col])
-
+    # Count unique facilities per county
     counts = (
         df.groupby(county_col)[facility_col]
         .nunique()
         .reset_index()
         .rename(columns={facility_col: "facility_count"})
     )
-
+    # Sort counties by number of facilities (highest first)
     return counts.sort_values(
         by="facility_count",
         ascending=False

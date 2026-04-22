@@ -3,6 +3,7 @@ import requests
 from io import BytesIO
 from .clean import clean_data
 
+# Mapping of supported states to their emergency data source URLs
 STATE_URLS = {
     "california": "https://data.chhs.ca.gov/dataset/7fb6eb5e-0f39-4d52-a0c5-8d638b550c24/resource/929362c5-513b-4e89-8a9e-b34834a3004d/download/emergency-department-volume-and-capacity-2021-2023.xlsx",
 }
