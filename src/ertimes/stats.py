@@ -271,23 +271,53 @@ def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFr
 
 
 def _bed_size_to_numeric(value: object) -> float:
+    """
+    Convert a hospital bed size value into a numeric value.
+
+    This function standardizes bed size values that may appear
+    in different formats in the dataset. Supported formats include:
+
+    - Missing values (returns np.nan)
+    - Values ending with "+" (e.g., "200+")
+    - Ranges (e.g., "50-99"), converted to the midpoint
+
+    Parameters
+    ----------
+    value : object
+        Bed size value from the dataset.
+
+    Returns
+    -------
+    float
+        Numeric representation of the bed size,
+        or np.nan if conversion is not possible.
+    """
+    # Return NaN if the value is missing
     if pd.isna(value):
         return np.nan
 
+    # Convert value to string and remove whitespace
     text = str(value).strip()
 
+    # Handle values ending with "+" (e.g., "200+")
     if text.endswith("+"):
-        number = text[:-1]
+        number = text[:-1] # Remove "+"
         if number.isdigit():
             return float(number)
+        
+        # If remaining text is not numeric, return NaN
         return np.nan
 
+    # Handle ranges like "50-99"
     match = re.fullmatch(r"(\d+)\s*-\s*(\d+)", text)
     if match:
         low = float(match.group(1))
         high = float(match.group(2))
+
+        # Return midpoint of the range
         return (low + high) / 2.0
 
+    # Return NaN if format is not recognized
     return np.nan
 
 
@@ -304,12 +334,64 @@ def find_capacity_volume_mismatch(
     low_capacity_quantile: float = 0.25,
     min_visits: int | None = None,
 ) -> pd.DataFrame:
+    """
+    Identify facilities where visit volume appears high relative to capacity.
+
+    This function calculates percentile rankings for visit volume,
+    number of ED stations, and licensed bed size. It combines the
+    station and bed percentiles into a capacity percentile and
+    compares this to visit demand to calculate a mismatch score.
+    Facilities with high visit demand and low capacity are flagged.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input DataFrame containing facility-level emergency department data.
+
+    visit_col : str, default="total_ed_visits"
+        Column containing total ED visit counts.
+
+    stations_col : str, default="ed_stations"
+        Column containing number of ED stations.
+
+    bed_col : str, default="licensed_bed_size"
+        Column containing licensed bed size values.
+
+    facility_col : str, default="facility_name"
+        Column identifying facility names.
+
+    county_col : str, default="county_name"
+        Column identifying county names.
+
+    year_col : str, default="year"
+        Column identifying year values.
+
+    high_visit_quantile : float, default=0.75
+        Percentile threshold used to define high visit volume.
+
+    low_capacity_quantile : float, default=0.25
+        Percentile threshold used to define low capacity.
+
+    min_visits : int or None, default=None
+        Optional minimum visit filter.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing facilities flagged as potential
+        capacity-volume mismatches, sorted by mismatch score.
+    """
+
+    # Clean dataset before processing
     df = clean_data(df)
+
+    # Verify required columns exist
     required_cols = [visit_col, stations_col, bed_col, facility_col]
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
+    # Validate percentile inputs
     if not 0 < high_visit_quantile < 1:
         raise ValueError("high_visit_quantile must be between 0 and 1")
 
@@ -318,20 +400,25 @@ def find_capacity_volume_mismatch(
 
     working = df.copy()
 
+    # Convert relevant columns to numeric format
     working["bed_size_numeric"] = working[bed_col].apply(_bed_size_to_numeric)
     working[visit_col] = pd.to_numeric(working[visit_col], errors="coerce")
     working[stations_col] = pd.to_numeric(working[stations_col], errors="coerce")
 
+    # Remove rows with missing required numeric values
     working = working.dropna(
         subset=[visit_col, stations_col, "bed_size_numeric"]
     ).copy()
 
+    # Optionally filter out low-volume facilities
     if min_visits is not None:
         working = working[working[visit_col] >= min_visits].copy()
 
+    # Return early if no data remains
     if working.empty:
         return working
 
+    # Calculate percentile rankings for visits and capacity metrics
     working["visit_percentile"] = working[visit_col].rank(
         pct=True, method="average"
     )
@@ -342,19 +429,23 @@ def find_capacity_volume_mismatch(
         pct=True, method="average"
     )
 
+    # Combine station and bed percentiles into overall capacity measure
     working["capacity_percentile"] = (
         working["station_percentile"] + working["bed_percentile"]
     ) / 2.0
 
+    # Calculate mismatch score (higher means more demand than capacity)
     working["mismatch_score"] = (
         working["visit_percentile"] - working["capacity_percentile"]
     )
 
+    # Flag facilities with high demand and low capacity
     flagged = working[
         (working["visit_percentile"] >= high_visit_quantile)
         & (working["capacity_percentile"] <= low_capacity_quantile)
     ].copy()
 
+    # Select output columns dynamically
     output_cols = [
         facility_col,
         county_col if county_col in flagged.columns else None,
@@ -371,6 +462,7 @@ def find_capacity_volume_mismatch(
     ]
     output_cols = [col for col in output_cols if col is not None]
 
+    # Return sorted results
     return flagged[output_cols].sort_values(
         by="mismatch_score", ascending=False
     ).reset_index(drop=True)
@@ -598,15 +690,39 @@ def year_range(csv_file:str)->tuple[int,int]:
 def plot_facility_trend(df: pd.DataFrame, facility_id: str):
     """
     Plots a time series of ED visits over time for a single facility.
-    """
+    
+    This function filters the dataset for a specified facility, cleans and converts 
+    relevant columns to numeric values, and generates a line plot showing total
+    ED visits over time.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+    DataFrame containing at least 'FacilityName2', 'year', and
+    'Tot_ED_NmbVsts' columns.
+    facility_id : str
+    Name of the facility to plot (must match values in 'FacilityName2').
+    
+    Returns
+    -------
+    matplotlib.figure.Figure
+        A matplotlib Figure object containing the facility trend plot
+        for the specified facility.
 
+    Raises
+    ------------
+    ValueError
+    If required columns are missing, the facility is not found,
+    or no valid numeric data is available.
+    """
+    #Check for required columns
     required_cols = ['FacilityName2', 'year', 'Tot_ED_NmbVsts']
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
     facility_df = df[df['FacilityName2'] == facility_id].copy()
-
+    # Check if facility exists in the dataset after filtering
     if facility_df.empty:
         raise ValueError(f"No data found for facility '{facility_id}'")
 
@@ -620,7 +736,7 @@ def plot_facility_trend(df: pd.DataFrame, facility_id: str):
         raise ValueError(f"No valid numeric data for facility '{facility_id}'")
 
     facility_df = facility_df.sort_values('year')
-
+    # create line plot of total ED visits over time for the specified facility
     plt.figure(figsize=(10, 6))
     sns.lineplot(
         data=facility_df,
