@@ -21,6 +21,9 @@ display_income_summary = module.display_income_summary
 
 
 def main():
+    """Main function to run the California median income analysis demo.
+    This function loads the dataset, performs various analyses, and prints the results.
+    """
     print("\n" + "="*70)
     print("CALIFORNIA MEDIAN INCOME ANALYSIS DEMO - CENSUS DATA 2024")
     print("="*70 + "\n")

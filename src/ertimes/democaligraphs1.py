@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 
 
 def load_merged_data(filepath: str) -> pd.DataFrame:
+    """Loads the merged dataset from a CSV file and standardizes 
+    county names."""
+    
     df = pd.read_csv(filepath)
 
     # standardize county names just in case
@@ -74,6 +77,7 @@ def graph_poverty_vs_visits(county_df: pd.DataFrame):
     plot_df["visits_per_station"] = pd.to_numeric(plot_df["visits_per_station"], errors="coerce")
     plot_df = plot_df.dropna()
 
+    
     plt.figure(figsize=(8, 6))
     plt.scatter(plot_df["cfambelowpovperc"], plot_df["visits_per_station"])
     plt.xlabel("Family Below Poverty (%)")

@@ -7,6 +7,7 @@ DATA_URLS = {
 
 
 def download_data(dataset: str) -> pd.DataFrame:
+    """Downloads the specified dataset, cleans it, and returns a DataFrame."""
     dataset_lower = dataset.lower()
 
     if dataset_lower not in DATA_URLS:
@@ -20,6 +21,7 @@ def download_data(dataset: str) -> pd.DataFrame:
 
 
 def load_data(filepath: str) -> pd.DataFrame:
+    """Loads the dataset from a CSV file, cleans it, and returns a DataFrame."""
     df = pd.read_csv(filepath)
     df = clean_data(df)
     return df

@@ -12,6 +12,10 @@ COUNTY_COLUMNS = {
 
 
 def standardize_county_names(series: pd.Series) -> pd.Series:
+    """
+    Standardizes county names by stripping whitespace, converting to lowercase,
+    and removing " county" suffix.
+    """
     return (
         series.astype(str)
         .str.strip()
@@ -21,6 +25,8 @@ def standardize_county_names(series: pd.Series) -> pd.Series:
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Cleans the dataset by extracting and standardizing county names from multiple columns,
+    then merging the relevant data into a single DataFrame with one row per county."""
     df = df.copy()
     blocks = []
 
