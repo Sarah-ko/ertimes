@@ -2,7 +2,6 @@ from pathlib import Path
 import pandas as pd
 from demodata import download_data
 
-
 def load_hospital_data(filepath: str | Path) -> pd.DataFrame:
     df = pd.read_csv(filepath)
 
