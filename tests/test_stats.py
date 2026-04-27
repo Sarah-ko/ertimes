@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import folium
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to prevent windows
 import matplotlib.pyplot as plt
 import sys
 
@@ -65,23 +67,23 @@ def test_bed_size_to_numeric():
 def test_rank_counties_by_burden():
     summary = pd.DataFrame(
         {
-            "CountyName": ["A", "B", "C"],
+            "county_name": ["A", "B", "C"],
             "visits_per_station": [10, 30, 20],
         }
     )
 
     ranked = stats.rank_counties_by_burden(summary)
 
-    assert list(ranked["CountyName"]) == ["B", "C", "A"]
+    assert list(ranked["county_name"]) == ["B", "C", "A"]
 
 
 def test_county_capacity_summary(monkeypatch):
     fake_df = pd.DataFrame(
         {
-            "CountyName": ["Alameda", "Alameda", "Fresno"],
-            "Tot_ED_NmbVsts": [100, 200, 90],
-            "EDStations": [10, 20, 0],
-            "LICENSED_BED_SIZE": ["1-49", "50-99", "100-199"],
+            "county_name": ["Alameda", "Alameda", "Fresno"],
+            "total_ed_visits": [100, 200, 90],
+            "ed_stations": [10, 20, 0],
+            "licensed_bed_size": ["1-49", "50-99", "100-199"],
         }
     )
 
@@ -92,8 +94,8 @@ def test_county_capacity_summary(monkeypatch):
 
     result = stats.county_capacity_summary("California")
 
-    alameda = result[result["CountyName"] == "Alameda"].iloc[0]
-    fresno = result[result["CountyName"] == "Fresno"].iloc[0]
+    alameda = result[result["county_name"] == "Alameda"].iloc[0]
+    fresno = result[result["county_name"] == "Fresno"].iloc[0]
 
     assert alameda["total_visits"] == 300
     assert alameda["total_stations"] == 30
@@ -108,12 +110,12 @@ def test_county_capacity_summary(monkeypatch):
 def test_find_capacity_volume_mismatch_flags_expected_hospital():
     df = pd.DataFrame(
         {
-            "FacilityName2": ["A", "B", "C", "D"],
-            "CountyName": ["X", "X", "Y", "Y"],
+            "facility_name": ["A", "B", "C", "D"],
+            "county_name": ["X", "X", "Y", "Y"],
             "year": [2023, 2023, 2023, 2023],
-            "Tot_ED_NmbVsts": [1000, 900, 700, 100],
-            "EDStations": [1, 10, 8, 20],
-            "LICENSED_BED_SIZE": ["1-49", "500+", "300-499", "500+"],
+            "total_ed_visits": [1000, 900, 700, 100],
+            "ed_stations": [1, 10, 8, 20],
+            "licensed_bed_size": ["1-49", "500+", "300-499", "500+"],
         }
     )
 
@@ -124,7 +126,7 @@ def test_find_capacity_volume_mismatch_flags_expected_hospital():
     )
 
     assert len(result) == 1
-    assert result.loc[0, "FacilityName2"] == "A"
+    assert result.loc[0, "facility_name"] == "A"
     assert result.loc[0, "mismatch_score"] > 0
 
 
@@ -186,6 +188,10 @@ def test_find_duplicates_bad_input_type():
         stats.find_duplicates([1, 2, 3])
 
 def test_plot_facility_trend_returns_figure():
+    """
+    Returns a matplotlib Figure for a valid facility input.
+    """
+
     df = pd.DataFrame({
         'FacilityName2': ['A', 'A'],
         'year': [2020, 2021],
@@ -198,6 +204,9 @@ def test_plot_facility_trend_returns_figure():
 
 
 def test_invalid_facility():
+    """
+    Raises ValueError when the facility is not found.
+    """
     df = pd.DataFrame({
         'FacilityName2': ['A'],
         'year': [2020],
@@ -209,6 +218,9 @@ def test_invalid_facility():
 
 
 def test_missing_columns():
+    """
+    Raises ValueError when required columns are missing.
+    """
     df = pd.DataFrame({
         'FacilityName2': ['A'],
         'year': [2020]
@@ -257,6 +269,40 @@ def test_per_category_burden_missing_column():
     with pytest.raises(KeyError):
         stats.per_category_burden_report(df)
 
+
+def test_rank_hospitals_by_visits_per_station_basic():
+    df = pd.DataFrame({
+        "facility_name": ["H1", "H2", "H3", "H1"],
+        "visits_per_station": [10, 30, 20, 30],
+    })
+
+    result = stats.rank_hospitals_by_visits_per_station(df)
+
+    # H1 median of [10, 30] = 20; H2 = 30; H3 = 20
+    # Sorted descending: H2 (30), then H1 (20), then H3 (20)
+    assert list(result["facility_name"]) == ["H2", "H1", "H3"]
+    assert result.loc[0, "visits_per_station"] == 30
+
+
+def test_rank_hospitals_by_visits_per_station_mean_and_top_n():
+    df = pd.DataFrame({
+        "facility_name": ["A", "B", "C", "A"],
+        "visits_per_station": [10, 40, 30, 50],
+    })
+
+    # Using mean aggregation: A=(10+50)/2=30, B=40, C=30
+    # Sorted: B (40), A (30), C (30)
+    # top_n=2 gives [B, A]
+    result = stats.rank_hospitals_by_visits_per_station(df, agg="mean", top_n=2)
+    assert len(result) == 2
+    assert list(result["facility_name"]) == ["B", "A"]
+
+
+def test_rank_hospitals_by_visits_per_station_missing_columns():
+    df = pd.DataFrame({"X": [1, 2]})
+    with pytest.raises(ValueError):
+        stats.rank_hospitals_by_visits_per_station(df)
+
 #pytest for health_conditions_bar.py 
 from io import StringIO
 from ertimes.health_conditions_bar import plot_category_visits
@@ -274,8 +320,8 @@ def test_plot_category_visits(monkeypatch, capsys):
     monkeypatch.setattr(plt, "show", lambda: None)
     # Build a sample DataFrame
     df = pd.DataFrame({
-        "Category": ["A", "B", "All ED Visits", "A", "C", "B"],
-        "EDDXCount": [10, 5, 9999, None, 20, 5]
+        "category": ["A", "B", "All ED Visits", "A", "C", "B"],
+        "ed_burden": [10, 5, 9999, None, 20, 5]
     })
     # Run the function
     plot_category_visits(df)
@@ -285,8 +331,8 @@ def test_plot_category_visits(monkeypatch, capsys):
 
     # Expected grouped/summed output (A: 10, B: 10, C: 20)
     expected_df = pd.DataFrame({
-        "Category": ["C", "A", "B"],
-        "EDDXCount": [20.0, 10.0, 10.0]
+        "category": ["C", "A", "B"],
+        "ed_burden": [20.0, 10.0, 10.0]
     })
 
     # Convert printed output into a DataFrame
@@ -301,7 +347,7 @@ def test_plot_category_visits(monkeypatch, capsys):
 def test_generate_county_report_basic():
     summary = pd.DataFrame(
         {
-            "CountyName": ["Autauga", "Baldwin"],
+            "county_name": ["Autauga", "Baldwin"],
             "total_visits": [1000, 2000],
             "total_stations": [10, 20],
             "total_beds": [75.0, 125.0],
@@ -311,13 +357,13 @@ def test_generate_county_report_basic():
     result = generate_county_report(summary, "Autauga")
 
     assert result.shape == (1, 5)
-    assert result.loc[0, "CountyName"] == "Autauga"
+    assert result.loc[0, "county_name"] == "Autauga"
     assert result.loc[0, "total_visits"] == 1000
 
 def test_generate_county_report_missing_county():
     summary = pd.DataFrame(
         {
-            "CountyName": ["Autauga", "Baldwin"],
+            "county_name": ["Autauga", "Baldwin"],
             "total_visits": [1000, 2000],
             "total_stations": [10, 20],
             "total_beds": [75.0, 125.0],
@@ -398,10 +444,10 @@ def test_plot_urban_rural_map_runs(monkeypatch):
     """
 
     fake_df = pd.DataFrame({
-        "LATITUDE": [34.1, 35.2],
-        "LONGITUDE": [-118.2, -119.3],
-        "UrbanRuralDesi": ["Urban", "Rural"],
-        "FacilityName2": ["Hospital A", "Hospital B"]
+        "latitude": [34.1, 35.2],
+        "longitude": [-118.2, -119.3],
+        "urban_rural_designation": ["Urban", "Rural"],
+        "facility_name": ["Hospital A", "Hospital B"]
     })
 
     def fake_download(state):
@@ -416,74 +462,77 @@ def test_plot_urban_rural_map_runs(monkeypatch):
 
 
 # Compute_capacity_pressure_score tests
+"""
+test_stats.py
+
+Unit tests for capacity pressure scoring and spike frequency pivot functions
+in ertimes.stats. Tests are organized around three areas:
+
+    1. compute_capacity_pressure_score — validates score bounds, directionality,
+       output structure, and edge cases using synthetic hospital data.
+
+    2. spike_frequency_pivot — validates that year-over-year spikes are correctly
+       detected, aggregated by category, and summed across facilities.
+
+Tests use make_df() and make_pivot_test_df() helpers to build minimal DataFrames
+with sensible defaults, so each test only specifies what it's actually testing.
+The smoke test (test_smoke_real_data) runs against live downloaded data to catch
+any integration issues with the full pipeline.
+"""
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
 def make_df(facilities: list[dict]) -> pd.DataFrame:
-    """Build a test DataFrame from a list of facility dicts."""
+    """
+    Build a minimal capacity-score test DataFrame from a list of facility dicts.
+
+    Each dict may override any of the default column values. Columns use the
+    lowercase naming convention expected by compute_capacity_pressure_score.
+
+    Parameters:
+        facilities: list of dicts, one per facility row
+
+    Returns:
+        DataFrame with one row per facility dict
+    """
     defaults = {
-        'PrimaryCareShortageArea':  'No',
-        'MentalHealthShortageArea': 'No',
-        'Visits_Per_Station':       100.0,
-        'LICENSED_BED_SIZE':        '200-299',
+        'primary_care_shortage_area':  'No',
+        'mental_health_shortage_area': 'No',
+        'visits_per_station':          100.0,
+        'licensed_bed_size':           '200-299',
     }
     rows = [{**defaults, **f} for f in facilities]
     return pd.DataFrame(rows)
 
-def score(df):
-    return compute_capacity_pressure_score(df).set_index('FacilityName2')['capacity_pressure_score']
 
-@pytest.fixture
-def two_hospitals():
-    return make_df([
-        {'FacilityName2': 'High', 'Visits_Per_Station': 1000.0, 'PrimaryCareShortageArea': 'Yes', 'MentalHealthShortageArea': 'Yes', 'LICENSED_BED_SIZE': '1-49'},
-        {'FacilityName2': 'Low',  'Visits_Per_Station': 10.0},
-    ])
+def score(df: pd.DataFrame) -> pd.Series:
+    """
+    Convenience wrapper that returns capacity_pressure_score indexed by facility_name.
 
+    Parameters:
+        df: DataFrame compatible with compute_capacity_pressure_score
 
-def test_score_bounds(two_hospitals):
-    s = score(two_hospitals)
-    assert s.between(1, 10).all()
-
-def test_score_is_numeric(two_hospitals):
-    assert pd.api.types.is_numeric_dtype(score(two_hospitals))
-
-def test_output_columns(two_hospitals):
-    result = compute_capacity_pressure_score(two_hospitals)
-    assert list(result.columns) == ['FacilityName2', 'capacity_pressure_score']
-
-def test_sorted_descending(two_hospitals):
-    s = compute_capacity_pressure_score(two_hospitals)['capacity_pressure_score'].tolist()
-    assert s == sorted(s, reverse=True)
-
-def test_one_row_per_facility():
-    df = make_df([{'FacilityName2': 'A'}, {'FacilityName2': 'A'}])
-    assert len(compute_capacity_pressure_score(df)) == 1
-
-def test_high_utilization_scores_higher(two_hospitals):
-    s = score(two_hospitals)
-    assert s['High'] > s['Low']
-
-def test_shortage_increases_score():
-    df = make_df([{'FacilityName2': 'Shortage', 'PrimaryCareShortageArea': 'Yes', 'MentalHealthShortageArea': 'Yes'},
-                  {'FacilityName2': 'None'}])
-    s = score(df)
-    assert s['Shortage'] > s['None']
-
-def test_smaller_bed_size_increases_score():
-    df = make_df([{'FacilityName2': 'Small', 'LICENSED_BED_SIZE': '1-49'},
-                  {'FacilityName2': 'Large', 'LICENSED_BED_SIZE': '500+'}])
-    s = score(df)
-    assert s['Small'] > s['Large']
-
-def test_zero_visits_no_nan():
-    df = make_df([{'FacilityName2': 'A', 'Visits_Per_Station': 0.0}])
-    assert not score(df).isna().any()
-
-def test_smoke_real_data():
-    df = pd.read_csv('data/Emergency Department Volume and Capacity - Catalog - ED_COMBINE_AL.csv')
-    assert not score(df).isna().any()
+    Returns:
+        Series of scores indexed by facility_name
+    """
+    return compute_capacity_pressure_score(df).set_index('facility_name')['capacity_pressure_score']
 
 
 def make_pivot_test_df(records: list[dict]) -> pd.DataFrame:
-    """Build a test DataFrame from a list of row dicts."""
+    """
+    Build a minimal spike-pivot test DataFrame from a list of row dicts.
+
+    Each dict may override any of the default column values. Columns use the
+    original casing expected by spike_frequency_pivot.
+
+    Parameters:
+        records: list of dicts, one per row
+
+    Returns:
+        DataFrame with one row per record dict
+    """
     defaults = {
         'FacilityName2':      'Test Hospital',
         'Category':           'All ED Visits',
@@ -492,11 +541,120 @@ def make_pivot_test_df(records: list[dict]) -> pd.DataFrame:
     }
     return pd.DataFrame([{**defaults, **r} for r in records])
 
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def two_hospitals() -> pd.DataFrame:
+    """
+    Two-facility DataFrame for directional and structural tests.
+
+    'High' has maximum pressure indicators: high utilization, both shortage
+    areas flagged, and smallest bed size. 'Low' uses all defaults.
+    """
+    return make_df([
+        {'facility_name': 'High', 'visits_per_station': 1000.0,
+         'primary_care_shortage_area': 'Yes',
+         'mental_health_shortage_area': 'Yes',
+         'licensed_bed_size': '1-49'},
+        {'facility_name': 'Low', 'visits_per_station': 10.0},
+    ])
+
+
+# ---------------------------------------------------------------------------
+# compute_capacity_pressure_score — output structure
+# ---------------------------------------------------------------------------
+
+def test_score_bounds(two_hospitals):
+    """All scores must fall within the defined 1–10 scale."""
+    s = score(two_hospitals)
+    assert s.between(1, 10).all()
+
+
+def test_score_is_numeric(two_hospitals):
+    """Scores must be a numeric dtype, not strings or objects."""
+    assert pd.api.types.is_numeric_dtype(score(two_hospitals))
+
+
+def test_output_columns(two_hospitals):
+    """Output DataFrame must have exactly facility_name and capacity_pressure_score."""
+    result = compute_capacity_pressure_score(two_hospitals)
+    assert list(result.columns) == ['facility_name', 'capacity_pressure_score']
+
+
+def test_sorted_descending(two_hospitals):
+    """Results must be sorted highest score first."""
+    s = compute_capacity_pressure_score(two_hospitals)['capacity_pressure_score'].tolist()
+    assert s == sorted(s, reverse=True)
+
+
+def test_one_row_per_facility():
+    """Multiple rows for the same facility must collapse into a single output row."""
+    df = make_df([{'facility_name': 'A'}, {'facility_name': 'A'}])
+    assert len(compute_capacity_pressure_score(df)) == 1
+
+
+# ---------------------------------------------------------------------------
+# compute_capacity_pressure_score — directional logic
+# ---------------------------------------------------------------------------
+
+def test_high_utilization_scores_higher(two_hospitals):
+    """A facility with higher visits_per_station must score higher than a low one."""
+    s = score(two_hospitals)
+    assert s['High'] > s['Low']
+
+
+def test_shortage_increases_score():
+    """Flagging both shortage areas must produce a higher score than no shortages."""
+    df = make_df([
+        {'facility_name': 'Shortage',
+         'primary_care_shortage_area': 'Yes',
+         'mental_health_shortage_area': 'Yes'},
+        {'facility_name': 'None'},
+    ])
+    s = score(df)
+    assert s['Shortage'] > s['None']
+
+
+def test_smaller_bed_size_increases_score():
+    """A facility with fewer beds must score higher than one with more beds."""
+    df = make_df([
+        {'facility_name': 'Small', 'licensed_bed_size': '1-49'},
+        {'facility_name': 'Large', 'licensed_bed_size': '500+'},
+    ])
+    s = score(df)
+    assert s['Small'] > s['Large']
+
+
+# ---------------------------------------------------------------------------
+# compute_capacity_pressure_score — edge cases
+# ---------------------------------------------------------------------------
+
+def test_zero_visits_no_nan():
+    """A facility with zero visits must still produce a valid (non-NaN) score."""
+    df = make_df([{'facility_name': 'A', 'visits_per_station': 0.0}])
+    assert not score(df).isna().any()
+
+
+def test_smoke_real_data():
+    """End-to-end smoke test: no NaN scores on live downloaded California data."""
+    df = download_emergency_data("california")
+    assert not score(df).isna().any()
+
+
+# ---------------------------------------------------------------------------
+# spike_frequency_pivot
+# ---------------------------------------------------------------------------
+
 def test_multiple_facilities_spikes_summed():
     """
-    Main test for spike_frequency_pivot
+    Spikes from different facilities in the same category must be summed.
 
-    Spikes across two facilities in the same category should be summed."""
+    Both Hospital A and Hospital B double their visits from 2021 to 2022
+    (+100%), which exceeds the default 20% threshold. The pivot table must
+    report a spike_count of 2 for 'All ED Visits'.
+    """
     df = make_pivot_test_df([
         {'FacilityName2': 'Hospital A', 'year': 2021, 'Visits_Per_Station': 100},
         {'FacilityName2': 'Hospital A', 'year': 2022, 'Visits_Per_Station': 200},
@@ -504,6 +662,128 @@ def test_multiple_facilities_spikes_summed():
         {'FacilityName2': 'Hospital B', 'year': 2022, 'Visits_Per_Station': 200},
     ])
     assert spike_frequency_pivot(df).loc['All ED Visits', 'spike_count'] == 2
+
+def test_smoke_real_data():
+    """End-to-end smoke test: no NaN spike counts on live downloaded California data."""
+    df = download_emergency_data("california")
+    result = spike_frequency_pivot(
+        df,
+        threshold_pct=20.0,
+        facility_col='facility_name',
+        category_col='category',
+        visits_col='visits_per_station'
+    )
+    assert not result.isna().any().any()
+    assert result['spike_count'].sum() > 0
+
+def test_all_categories_present():
+    """Both categories in the input must appear as rows in the pivot output."""
+    df = make_pivot_test_df([
+        {'Category': 'Diabetes',      'year': 2021, 'Visits_Per_Station': 100},
+        {'Category': 'Diabetes',      'year': 2022, 'Visits_Per_Station': 200},
+        {'Category': 'Mental Health', 'year': 2021, 'Visits_Per_Station': 100},
+        {'Category': 'Mental Health', 'year': 2022, 'Visits_Per_Station': 105},
+    ])
+    result = spike_frequency_pivot(df)
+    assert set(result.index) == {'Diabetes', 'Mental Health'}
+
+def test_spike_counted():
+    """A +100% YoY increase must register as one spike."""
+    df = make_pivot_test_df([
+        {'year': 2021, 'Visits_Per_Station': 100},
+        {'year': 2022, 'Visits_Per_Station': 200},
+    ])
+    assert spike_frequency_pivot(df, threshold_pct=20.0).loc['All ED Visits', 'spike_count'] == 1
+
+#pytests for summarize_by_ownership function
+from ertimes.stats import summarize_by_ownership 
+
+def test_basic_summary():
+    """Test that function computes group summary stats correctly on a simple dataset
+    
+    checks that grouping works, aggregation applies, and column names are correct with manually computable values"""
+
+    #simple test data with 2 ownership groups
+    df = pd.DataFrame({
+        "HospitalOwnership": ["A", "A", "B", "B"],
+        "Tot_ED_NmbVsts": [100, 200, 300, 400],
+        "EDStations": [10, 20, 30, 40],
+        "Visits_Per_Station": [10, 10, 10, 10]
+    })
+    #run function
+    result = summarize_by_ownership(df)
+    #create expected result via manual computation
+    expected = pd.DataFrame({
+        "HospitalOwnership": ["A", "B"],
+        "Tot_ED_NmbVsts_mean": [150.0, 350.0],
+        "Tot_ED_NmbVsts_sum": [300, 700],
+        "EDStations_mean": [15.0, 35.0],
+        "EDStations_sum": [30, 70],
+        "Visits_Per_Station_mean": [10.0, 10.0],
+        "Visits_Per_Station_median": [10.0, 10.0],
+        "Visits_Per_Station_std": [0.0, 0.0]
+    })
+
+    result = result.sort_values("HospitalOwnership").reset_index(drop=True)
+    expected = expected.sort_values("HospitalOwnership").reset_index(drop=True)
+    #compare results, testing for structure/value comparison
+    pd.testing.assert_frame_equal(result, expected)
+
+def test_sort_order():
+    """Test that output is sorted by visits_perstation_mean descending (ordering by average efficiency)
+    
+    the group with highest visits_perstation_mean should appear first"""
+    #simple data where B has higher efficiency
+    df = pd.DataFrame({
+        "HospitalOwnership": ["A", "B"],
+        "Tot_ED_NmbVsts": [100, 200],
+        "EDStations": [10, 10],
+        "Visits_Per_Station": [5, 20]  
+    })
+    result = summarize_by_ownership(df)
+    #check that first row is B (the highest efficiency)
+    assert result.iloc[0]["HospitalOwnership"] == "B"
+
+def test_missing_col_error():
+    """Test that missing any of the required columns raises ValueError for that column"""
+    #data with missing required numeric columns
+    df = pd.DataFrame({
+        "HospitalOwnership": ["A", "B"]
+    })
+    #expect error that tells which columns are missing
+    with pytest.raises(ValueError, match="Missing required columns"):
+        summarize_by_ownership(df)
+
+def test_non_numeric_coercion():
+    """Test that nonnumeric values are handled correctly
+
+    ie) coercion of non-numeric values to NaN, and mean/aggrgation functions ignore NaN in computation"""
+
+    df = pd.DataFrame({
+        "HospitalOwnership": ["A", "A"],
+        "Tot_ED_NmbVsts": ["100", "bad"],  #'bad' → NaN due to nonnumeric coercion
+        "EDStations": ["10", "20"],
+        "Visits_Per_Station": ["5", "5"]
+    })
+    result = summarize_by_ownership(df)
+    # only 100 should be used in computation, only numeric value 
+    assert result.loc[0, "Tot_ED_NmbVsts_mean"] == 100.0
+
+def test_missing_ownership():
+    """Test that rows with missing ownership category are dropped from data"""
+
+    df = pd.DataFrame({
+        "HospitalOwnership": ["A", None],
+        "Tot_ED_NmbVsts": [100, 200],
+        "EDStations": [10, 20],
+        "Visits_Per_Station": [10, 10]
+    })
+    # only A should remain, the only valid ownership group 
+    result = summarize_by_ownership(df)
+
+    assert len(result) == 1
+    assert result.iloc[0]["HospitalOwnership"] == "A"
+
 
 import sys
 
@@ -535,3 +815,115 @@ def test_run_er_analysis(monkeypatch):
     assert "YoY_Visits" in result.columns
     assert "Utilization" in result.columns
     assert "Mismatch" in result.columns
+
+
+# ============================================================================
+# Tests for county_facility_counts()
+# ============================================================================
+
+def test_county_facility_counts_basic():
+    """Test basic functionality: counts unique facilities per county."""
+    df = pd.DataFrame({
+        "CountyName": ["Alameda", "Alameda", "Fresno", "Fresno", "Fresno"],
+        "FacilityName2": ["HospA", "HospB", "HospC", "HospD", "HospC"],
+    })
+    
+    result = stats.county_facility_counts(df)
+    
+    assert len(result) == 2
+    # Fresno: HospC, HospD, HospC (counted as 2 unique)
+    # Alameda: HospA, HospB (2 unique)
+    assert result.iloc[0]["facility_count"] == 2  # Fresno (3 rows but 2 unique facilities)
+    assert result.iloc[1]["facility_count"] == 2  # Alameda
+
+
+def test_county_facility_counts_sorted_descending():
+    """Test that results are sorted by facility_count descending."""
+    df = pd.DataFrame({
+        "CountyName": ["A", "A", "B", "B", "B", "B"],
+        "FacilityName2": ["H1", "H2", "H3", "H4", "H5", "H6"],
+    })
+    
+    result = stats.county_facility_counts(df)
+    
+    assert (result["facility_count"] == result["facility_count"].sort_values(ascending=False)).all()
+
+
+def test_county_facility_counts_missing_columns():
+    """Test that missing required columns raise ValueError."""
+    df = pd.DataFrame({
+        "County": ["Alameda"],
+        "Facility": ["HospA"],
+    })
+    
+    with pytest.raises(ValueError, match="Missing required columns"):
+        stats.county_facility_counts(df)
+
+
+def test_county_facility_counts_custom_columns():
+    """Test with custom column names."""
+    df = pd.DataFrame({
+        "Region": ["North", "North", "South"],
+        "Hospital": ["H1", "H2", "H3"],
+    })
+    
+    result = stats.county_facility_counts(
+        df,
+        county_col="Region",
+        facility_col="Hospital"
+    )
+    
+    assert "Region" in result.columns
+    assert len(result) == 2
+
+
+def test_county_facility_counts_handles_na():
+    """Test that NaN values are dropped from grouping."""
+    df = pd.DataFrame({
+        "CountyName": ["Alameda", "Alameda", None, "Fresno"],
+        "FacilityName2": ["HospA", "HospB", "HospC", "HospD"],
+    })
+    
+    result = stats.county_facility_counts(df)
+    
+    # Should only have Alameda and Fresno (not NaN county)
+    assert len(result) == 2
+    assert None not in result["CountyName"].values
+
+
+def test_county_facility_counts_duplicates_not_counted():
+    """Test that duplicate facilities in a county are counted once (using nunique)."""
+    df = pd.DataFrame({
+        "CountyName": ["Alameda", "Alameda", "Alameda"],
+        "FacilityName2": ["HospA", "HospA", "HospB"],
+    })
+    
+    result = stats.county_facility_counts(df)
+    
+    # Should have 2 unique facilities (HospA counted once, HospB counted once)
+    assert result.iloc[0]["facility_count"] == 2
+
+#testing another scenario for percent growth 
+
+def test_calculate_growth_percent_multiple_groups():
+    df = pd.DataFrame({
+        "oshpd_id": [1, 1, 1, 2, 2],
+        "year": [2020, 2021, 2022, 2020, 2021],
+        "Tot_ED_NmbVsts": [100, 150, 300, 200, 100]
+    })
+
+    result = stats.calculate_growth(
+        df,
+        value_col="Tot_ED_NmbVsts",
+        group_cols=["oshpd_id"],
+        pct=True
+    )
+
+    # Group 1 expectations
+    assert np.isnan(result.loc[result["year"] == 2020].iloc[0]["growth"])
+    assert result.loc[(result["oshpd_id"] == 1) & (result["year"] == 2021), "growth"].iloc[0] == 50
+    assert result.loc[(result["oshpd_id"] == 1) & (result["year"] == 2022), "growth"].iloc[0] == 100
+
+    # Group 2 expectations
+    assert np.isnan(result.loc[(result["oshpd_id"] == 2) & (result["year"] == 2020), "growth"].iloc[0])
+    assert result.loc[(result["oshpd_id"] == 2) & (result["year"] == 2021), "growth"].iloc[0] == -50
