@@ -251,23 +251,27 @@ def test_missing_columns():
 import pandas as pd
 from ertimes.stats import mental_health_shortage_analysis
 
-def test_mental_health_shortage_analysis():
-    """Tests that mental_health_shortage_analysis correctly 
-    calculates burden scores and flags high-risk facilities based on 
-    synthetic data."""
-    data = {
-        'Tot_ED_NmbVsts': [1000, 2000],
-        'EDStations': [10, 20],
-        'MentalHealthShortageArea': ['Yes', 'No']
-    }
 
-    df = pd.DataFrame(data)
-    result = mental_health_shortage_analysis(df)
+def test_percentile_high_risk_basic():
+    # Create a simple dataset
+    df = pd.DataFrame({
+        "tot_ed_nmb_vsts": [100, 200, 300, 400, 500],
+        "ed_stations": [10, 10, 10, 10, 10],
+        "mental_health_shortage_area": ["Yes", "No", "Yes", "No", "Yes"],
+        "year": [2020, 2020, 2020, 2020, 2020]
+    })
 
-    assert 'burden_score' in result.columns
-    assert 'high_risk' in result.columns
-    assert result['burden_score'].iloc[0] == 100       
+    result = mental_health_shortage_analysis(df, percentile_threshold=80)
 
+    # --- Manual reasoning ---
+    # burden_score = visits / stations = [10, 20, 30, 40, 50]
+    # 80th percentile ≈ 40
+    # high burden = > 40 → only 50
+    # shortage = only index 4 is "Yes"
+    # so only one row should qualify
+
+    assert len(result) == 1
+    assert result.iloc[0]["tot_ed_nmb_vsts"] == 500
 
 def test_per_category_burden_basic():
     """Tests that per_category_burden_report correctly groups by category, 
