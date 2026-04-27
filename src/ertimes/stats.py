@@ -190,12 +190,10 @@ def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFr
         county_capacity_summary().
     county_name : str
         Name of the county to report.
->>>>>>> 07a3c5930e7d0dc865cad0b62c2931803661d5c6
 
     Returns
     -------
     pd.DataFrame
-<<<<<<< HEAD
         DataFrame with columns [facility_col, 'visits_per_station', 'rank'] sorted
         by 'visits_per_station' descending.
     """
@@ -807,27 +805,16 @@ def run_er_analysis(df, hospital_name=None):
     - Detect mismatches between demand and capacity
     - Generate simple visualizations
     """
-    df = clean_data(df)
+   
 
-    # Sort for correct time-series operations
-    df = df.sort_values(["facility_id", "year"]).copy()
+    df = df.sort_values(["oshpd_id", "year"]).copy()
 
-    # Year-over-year visits change
-    df["YoY_Visits"] = (
-    df.groupby("facility_id")["total_ed_visits"]
-    .transform(lambda x: x.ffill().pct_change())
-)
+    df["YoY_Visits"] = df.groupby("oshpd_id")["Tot_ED_NmbVsts"].pct_change()
 
-    # Utilization proxy
-    df["Utilization"] = df["visits_per_station"]
+    df["Utilization"] = df["Visits_Per_Station"]
 
-    # FIX: remove deprecated fill_method argument
-    df["Utilization_change"] = (
-    df.groupby("facility_id")["Utilization"]
-    .transform(lambda x: x.ffill().pct_change())
-)
+    df["Utilization_change"] = df.groupby("oshpd_id")["Utilization"].pct_change(fill_method=None)
 
-    # Detect mismatch: demand ↑ but utilization not ↑
     df["Mismatch"] = (
         (df["YoY_Visits"] > 0) & (df["Utilization_change"] <= 0)
     )
@@ -984,27 +971,6 @@ def plot_urban_rural_map(state: str, save: bool = False) -> folium.Map:
             raise
 
     return m
-
-
-def mental_health_shortage_analysis(df):
-    #making a copy of the dataframe
-    df = df.copy()
-
-    df['Tot_ED_NmbVsts'] = pd.to_numeric(df['Tot_ED_NmbVsts'], errors='coerce')
-    df['EDStations'] = pd.to_numeric(df['EDStations'], errors='coerce')
-
-    df['EDStations'] = df['EDStations'].replace(0, 0.0001)
-
-    df['burden_score'] = df['Tot_ED_NmbVsts'] / df['EDStations']
-    #average burden score
-    avg_burden = df['burden_score'].mean()
-
-    df['high_risk'] = (
-        (df['MentalHealthShortageArea'] == 'Yes') &
-        (df['burden_score'] > avg_burden)
-    )
-
-    return df
 
 
 def summarize_by_ownership(df,
@@ -1172,3 +1138,211 @@ def spike_frequency_pivot(
     ).rename(columns={'is_spike': 'spike_count'})
 
     return pivot.sort_values('spike_count', ascending=False)
+
+
+def mental_health_shortage_analysis(
+    df,
+    visit_col="tot_ed_nmb_vsts",
+    station_col="ed_stations",
+    shortage_col="mental_health_shortage_area",
+    shortage_value="Yes",
+    group_col="year",
+    percentile_threshold=75,
+    top_n=None
+):
+
+    """
+    Identifies high-risk facilities based on ED burden and mental health shortages
+    using a percentile-based definition of high burden.
+
+    A facility is considered "high risk" if:
+    - It is in a mental health shortage area, AND
+    - Its ED burden (visits per station) is above the specified percentile
+      within its group (e.g., year)
+
+    Parameters:
+        df (pd.DataFrame): Input dataset
+        visit_col (str): Column for ED visits
+        station_col (str): Column for ED stations
+        shortage_col (str): Column indicating shortage status
+        shortage_value (str): Value indicating shortage (e.g., "Yes")
+        group_col (str or list): Column(s) for grouping (e.g., year)
+        percentile_threshold (int): Percentile cutoff (default = 75)
+        top_n (int, optional): Return top N highest-risk facilities
+
+    Returns:
+        pd.DataFrame: High-risk facilities
+    
+    Flow:
+        1. Input data set is copied & cleaned
+        2. Burden score is created for each facility
+        3. Within each group, a percentile score is computed for the burden score (default = 75th percentile)
+        4. Facilities are flagged as "high burden" if the exceed the percentile, and flagged as "mental health shortage areas" depending on the data
+        5. Risk score is computed (percentile rank (burden) + composite risk (shortage))
+        6. Facilities are sorted by risk
+        7. A summary of high-risk facility counts is printed by group
+
+    """
+
+    # Convert to numeric: ensures columns are numbers and not "strings"
+    df[visit_col] = pd.to_numeric(df[visit_col], errors="coerce")
+    df[station_col] = pd.to_numeric(df[station_col], errors="coerce")
+
+    # Handle bad data: removes rows w/ missing values + replaces "0" stations with NaN (to avoid division by 0)
+    df = df.dropna(subset=[visit_col, station_col])
+    df[station_col] = df[station_col].replace(0, np.nan)
+    df = df.dropna(subset=[station_col])
+
+    # Burden score calculation: # of visits/# of available stations (essentially, tells us how overloaded each facility is)
+    df["burden_score"] = df[visit_col] / df[station_col]
+
+    # Percentile threshold for each group: calculates the cutoff for the top 75th percentile of facilities for high burden, with regards to the group
+    df["burden_percentile_thresh"] = df.groupby(group_col)["burden_score"].transform(
+    lambda x: np.percentile(x, percentile_threshold)
+    )
+
+    # High burden flag: tells us if hospitals are in the top 75th percentile of burden
+    df["high_burden"] = df["burden_score"] > df["burden_percentile_thresh"]
+
+    # Shortage flag: converts "Yes" into "True/False", making it easier to use logic
+    df["is_shortage"] = df[shortage_col] == shortage_value
+
+    # Defining high-risk facilities: tells us high burden AND shortage area
+    df["high_risk"] = df["is_shortage"] & df["high_burden"]
+
+    # Percentile rank: converts a burden into a relative position (0 to 1)
+    df["burden_percentile_rank"] = df.groupby(group_col)["burden_score"].rank(pct=True)
+
+    #Risk score: higher burden -> higher percentile rank; shortage -> +1 point
+    df["risk_score"] = (
+        df["burden_percentile_rank"] +
+        df["is_shortage"].astype(int)
+    )
+
+    # Sorting: puts the most at-risk facilities at the top
+    df = df.sort_values("risk_score", ascending=False)
+
+    # Selects output type: top_n returns all high-risk hospitals; setting it equal to a number would return that number of facilities
+    if top_n is not None:
+        result = df.head(top_n)
+    else:
+        result = df[df["high_risk"]]
+
+    # Summary output: counts the number of high-risk hospitals per group ("year" here)
+    summary = result.groupby(group_col).size()
+    print("\nHigh-risk facilities per group:")
+    print(summary)
+
+    return result
+
+
+def summarize_by_ownership(df,
+    ownership_type="HospitalOwnership",
+    total_visits="Tot_ED_NmbVsts",
+    stations="EDStations",
+    visits_perstation="Visits_Per_Station"):
+    """
+    group hospitals by ownership type and compute summary statistics for burden, volume, & capacity insights
+   
+    parameters needed:
+    ownership_type: column name representing ownership categories (e.g. nonprofit, government, private, etc)
+    total_visits: column name representing total number of emergency department encounters for the facility
+    stations: column name representing the number of emergency department treatment stations
+    visits_perstation: column name representing number of visits per station in a facility
+      """
+    #ensure all required columns exist, raise column specific error if not
+    required = [ownership_type, total_visits, stations, visits_perstation]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+    # create a copy of the original data frame to avoid overwriting/modifying
+    df = df.copy()
+    #ensure columns are read as numeric for numeric analysis
+    df[total_visits] = pd.to_numeric(df[total_visits], errors="coerce")
+    df[stations] = pd.to_numeric(df[stations], errors="coerce")
+    df[visits_perstation] = pd.to_numeric(df[visits_perstation], errors="coerce")
+    #drop observations that are missing ownership type (our parameter of interest for grouping)
+    df = df.dropna(subset=[ownership_type])
+    #group by different types of ownership, compute summary statistics 
+    summary = df.groupby(ownership_type).agg({
+    total_visits: ["mean", "sum"], #volume metric
+    stations: ["mean", "sum"], #capacity metric
+    visits_perstation: ["mean", "median", "std"]}) #burden metric
+    #flattens column names & resets to have ownership type column 
+    summary.columns = ["_".join(col) for col in summary.columns]
+    summary = summary.reset_index()
+    #return columns sorted by average efficiency in descending order
+    summary = summary.sort_values(by=f"{visits_perstation}_mean", ascending=False)
+    
+    #output final summary
+    return summary
+
+
+
+def clean_growth(df):
+   df = df.copy()
+
+
+   # clear NAs
+   df = df.dropna(subset=["Tot_ED_NmbVsts", "year"])
+
+
+   # types
+   df["year"] = df["year"].astype(int)
+   df["Tot_ED_NmbVsts"] = pd.to_numeric(df["Tot_ED_NmbVsts"], errors="coerce")
+
+
+   df = df.sort_values(by=["FacilityName2", "year"])
+
+
+   return df
+
+
+
+def calculate_growth(df, value_col, group_cols, time_col="year", pct=True):
+   
+   """
+   Parameters:
+   - df: Data Frame
+   - value_col: column to calculate growth on ('Tot_ED_NmbVsts')
+   - group_cols: list of columns to group by ('oshpd_id')
+   - time_col: time ('year')
+   - pct: if True, returns percent growth; else raw difference
+   """
+
+
+   df = df.copy()
+
+
+   # Sort
+   df = df.sort_values(by=group_cols + [time_col])
+
+
+   # Calculate previous value
+   df["prev_value"] = df.groupby(group_cols)[value_col].shift(1)
+
+
+   # Growth calculation
+   if pct:
+       df["growth"] = (df[value_col] - df["prev_value"]) / df["prev_value"] * 100
+   else:
+       df["growth"] = df[value_col] - df["prev_value"]
+
+
+   return df
+
+
+def county_facility_counts(df,county_col="CountyName",facility_col="FacilityName2"):
+    required=[county_col,facility_col]
+    missing=[col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+    df=df.copy()
+    df=df.dropna(subset=[county_col,facility_col])
+    counts=df.groupby(county_col)[facility_col].nunique().reset_index()
+    counts=counts.rename(columns={facility_col:"facility_count"})
+    return counts.sort_values(by="facility_count",ascending=False).reset_index(drop=True)
+
+
+    # RETURN: Only high-risk facilities
+    return df[df["high_risk"]]
