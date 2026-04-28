@@ -1088,3 +1088,182 @@ def test_rank_hospitals_by_visits_per_station_top_n_zero():
 
     assert result.empty
     assert list(result.columns) == ["facility_name", "visits_per_station"]
+
+from ertimes.stats_visualization import (
+    plot_hospital_load_distribution,
+    year_range,
+    create_ed_map,
+    plot_category_visits_by_facility,
+)
+
+
+def test_plot_hospital_load_distribution_returns_figure():
+    """plot_hospital_load_distribution should return a matplotlib Figure."""
+    df = pd.DataFrame({
+        "Tot_ED_NmbVsts": [100, 200, 300],
+        "EDStations": [10, 20, 30],
+    })
+
+    fig = plot_hospital_load_distribution(df)
+
+    assert fig is not None
+    assert hasattr(fig, "savefig")
+
+
+def test_plot_hospital_load_distribution_missing_columns():
+    """plot_hospital_load_distribution should raise ValueError when required columns are missing."""
+    df = pd.DataFrame({
+        "Tot_ED_NmbVsts": [100, 200],
+    })
+
+    with pytest.raises(ValueError, match="Missing required columns"):
+        plot_hospital_load_distribution(df)
+
+
+def test_plot_hospital_load_distribution_bad_input_type():
+    """plot_hospital_load_distribution should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+        plot_hospital_load_distribution([1, 2, 3])
+
+
+def test_plot_hospital_load_distribution_save_path(tmp_path):
+    """plot_hospital_load_distribution should save a figure when save_path is provided."""
+    df = pd.DataFrame({
+        "Tot_ED_NmbVsts": [100, 200, 300],
+        "EDStations": [10, 20, 30],
+    })
+    output_path = tmp_path / "load_distribution.png"
+
+    fig = plot_hospital_load_distribution(df, save_path=str(output_path))
+
+    assert fig is not None
+    assert output_path.exists()
+
+
+def test_year_range_basic(tmp_path):
+    """year_range should return the minimum and maximum valid year from a CSV."""
+    csv_path = tmp_path / "years.csv"
+    pd.DataFrame({
+        "year": [2020, 2021, 2023],
+        "value": [1, 2, 3],
+    }).to_csv(csv_path, index=False)
+
+    assert year_range(str(csv_path)) == (2020, 2023)
+
+
+def test_year_range_missing_year_column(tmp_path):
+    """year_range should raise ValueError when the CSV has no year column."""
+    csv_path = tmp_path / "no_year.csv"
+    pd.DataFrame({
+        "value": [1, 2, 3],
+    }).to_csv(csv_path, index=False)
+
+    with pytest.raises(ValueError, match="year"):
+        year_range(str(csv_path))
+
+
+def test_year_range_no_valid_year_values(tmp_path):
+    """year_range should raise ValueError when year column has no valid numeric values."""
+    csv_path = tmp_path / "bad_years.csv"
+    pd.DataFrame({
+        "year": ["bad", None, "unknown"],
+    }).to_csv(csv_path, index=False)
+
+    with pytest.raises(ValueError, match="valid year"):
+        year_range(str(csv_path))
+
+
+def test_plot_facility_trend_bad_input_type():
+    """plot_facility_trend should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+        plot_facility_trend([1, 2, 3], "A")
+
+
+def test_plot_urban_rural_map_missing_coordinate_rows(monkeypatch):
+    """plot_urban_rural_map should raise ValueError when no valid coordinates remain."""
+    fake_df = pd.DataFrame({
+        "LATITUDE": [None, None],
+        "LONGITUDE": [None, None],
+        "UrbanRuralDesi": ["Urban", "Rural"],
+        "FacilityName2": ["A", "B"],
+    })
+
+    def fake_download(state):
+        return fake_df
+
+    monkeypatch.setattr("ertimes.stats_analysis.download_emergency_data", fake_download)
+
+    with pytest.raises(ValueError, match="No valid latitude/longitude"):
+        plot_urban_rural_map("California")
+
+
+def test_create_ed_map_filters_year():
+    """create_ed_map should return a Plotly figure for the requested year."""
+    df = pd.DataFrame({
+        "year": [2020, 2021],
+        "latitude": [34.1, 35.2],
+        "longitude": [-118.2, -119.3],
+        "total_ed_visits": [100, 200],
+        "primary_care_shortage": ["Yes", "No"],
+        "mental_health_shortage": ["No", "Yes"],
+        "county": ["A", "B"],
+        "ed_name": ["Hospital A", "Hospital B"],
+    })
+
+    fig = create_ed_map(df, 2021)
+
+    assert fig is not None
+    assert hasattr(fig, "to_dict")
+
+
+def test_create_ed_map_missing_columns():
+    """create_ed_map should raise ValueError when required columns are missing."""
+    df = pd.DataFrame({
+        "year": [2021],
+        "latitude": [34.1],
+    })
+
+    with pytest.raises(ValueError, match="Missing required columns"):
+        create_ed_map(df, 2021)
+
+
+def test_create_ed_map_bad_input_type():
+    """create_ed_map should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+        create_ed_map([1, 2, 3], 2021)
+
+
+def test_plot_category_visits_by_facility_returns_figure(monkeypatch, capsys):
+    """plot_category_visits_by_facility should return a Figure and print the category summary."""
+    monkeypatch.setattr(plt, "show", lambda: None)
+
+    df = pd.DataFrame({
+        "facility_name": ["A", "A", "B"],
+        "category": ["Stroke", "All ED Visits", "Stroke"],
+        "ed_burden": [20, 999, 40],
+    })
+
+    fig = plot_category_visits_by_facility(df, "A")
+    captured = capsys.readouterr()
+
+    assert fig is not None
+    assert hasattr(fig, "savefig")
+    assert "Stroke" in captured.out
+    assert "All ED Visits" not in captured.out
+
+
+def test_plot_category_visits_by_facility_missing_columns():
+    """plot_category_visits_by_facility should raise ValueError if required columns are missing."""
+    df = pd.DataFrame({
+        "facility_name": ["A"],
+        "category": ["Stroke"],
+    })
+
+    with pytest.raises(ValueError, match="Missing required columns"):
+        plot_category_visits_by_facility(df, "A")
+
+
+def test_plot_category_visits_bad_input_type():
+    """plot_category_visits should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+        plot_category_visits([1, 2, 3])
