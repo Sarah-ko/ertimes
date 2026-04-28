@@ -11,8 +11,8 @@ from ertimes import stats
 
 # Use this clean import now that 'pip install -e .' worked!
 from ertimes.io import download_emergency_data 
-from ertimes.stats_analysis import _bed_size_to_numeric, find_capacity_volume_mismatch, compute_capacity_pressure_score, spike_frequency_pivot, mental_health_shortage_analysis, calculate_growth, county_facility_counts
-from ertimes.stats_reports import generate_county_report, per_category_burden_report, summarize_by_ownership, find_duplicates
+from ertimes.stats_analysis import find_capacity_volume_mismatch, compute_capacity_pressure_score, spike_frequency_pivot, mental_health_shortage_analysis 
+from ertimes.stats_reports import generate_county_report, summarize_by_ownership
 from ertimes.stats_ranking import rank_counties_by_burden, rank_hospitals_by_visits_per_station
 from ertimes.stats_visualization import plot_facility_trend, plot_urban_rural_map
 
@@ -412,8 +412,8 @@ def test_generate_county_report_missing_county():
 
 
 #Median_Income Tests
-from ertimes.stats_analysis import load_california_income_data, get_income_by_zip, get_income_statistics
-
+from ertimes.stats_analysis import load_california_income_data, get_income_by_zip
+from ertimes.demographics import get_income_statistics
 
 def test_load_california_income_data():
     # Test loading data from a valid file
