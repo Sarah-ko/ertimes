@@ -109,31 +109,17 @@ def per_category_burden_report(
 def find_duplicates(
     df,
     subset: list[str] | None = None,
-    keep: str = "first",
+    keep: str | bool = False,
 ) -> pd.DataFrame:
-    """
-    Find duplicate rows in a DataFrame.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame to check for duplicates.
-    subset : list[str] | None
-        Columns to consider for duplicates. If None, use all columns.
-    keep : str
-        Which duplicates to keep: 'first', 'last', or False.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing duplicate rows.
-    """
     if not isinstance(df, pd.DataFrame):
         raise TypeError("Input must be a pandas DataFrame")
 
-    duplicates = df[df.duplicated(subset=subset, keep=keep)]
+    if subset is not None:
+        missing = [col for col in subset if col not in df.columns]
+        if missing:
+            raise ValueError(f"Missing subset columns: {missing}")
 
-    return duplicates
+    return df[df.duplicated(subset=subset, keep=keep)]
 
 def summarize_by_ownership(df, column_map: dict[str, str] | None = None):
     """
