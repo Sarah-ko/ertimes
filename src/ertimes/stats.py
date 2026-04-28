@@ -27,6 +27,7 @@ from .stats_analysis import (
     calculate_growth,
     spike_frequency_pivot,
     county_facility_counts,
+    run_er_analysis,
 )
 
 # Import all visualization functions
@@ -75,4 +76,5 @@ __all__ = [
     "find_duplicates",
     # io
     "download_emergency_data",
+    "run_er_analysis",
 ]
