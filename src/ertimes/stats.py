@@ -10,6 +10,30 @@ import os
 from pathlib import Path
 from folium.plugins import MarkerCluster
 
+def _resolve_columns(column_map: dict[str, str] | None, columns: list[str]) -> dict[str, str]:
+    """
+    Resolve column names using a mapping dictionary.
+    
+    If column_map is provided, maps each column name to its mapped value if present,
+    otherwise uses the original column name.
+    
+    Parameters
+    ----------
+    column_map : dict[str, str] | None
+        Dictionary mapping column names to their actual names in the DataFrame.
+    columns : list[str]
+        List of column names to resolve.
+    
+    Returns
+    -------
+    dict[str, str]
+        Dictionary mapping each input column name to its resolved name.
+    """
+    if column_map is None:
+        return {col: col for col in columns}
+    else:
+        return {col: column_map.get(col, col) for col in columns}
+
 def county_capacity_summary(
     state: str,
     county_col: str = "CountyName",
@@ -51,18 +75,7 @@ def county_capacity_summary(
     """
     df = download_emergency_data(state).copy() # Load and isolate dataset for safe mutation
 
-<<<<<<< juliette
     required_cols = [county_col, visits_col, stations_col, bed_col]
-=======
-    # Ensure required columns exist before processing
-    required_cols = [
-        "county_name",
-        "total_ed_visits",
-        "ed_stations",
-        "licensed_bed_size",
-    ]
-    # Ensure dataset has all required fields before analysis
->>>>>>> main
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
@@ -193,7 +206,6 @@ def rank_hospitals_by_visits_per_station(
     return result
 
 
-<<<<<<< juliette
 def generate_county_report(
     summary: pd.DataFrame,
     county_name: str,
@@ -203,58 +215,6 @@ def generate_county_report(
     beds_col: str = "licensed_bed_size",
     visits_per_station_col: str = "visits_per_station",
 ) -> pd.DataFrame:
-=======
-def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFrame:
-    """
-    Return a one-row county report from a county summary DataFrame.
-
-    Parameters
-    ----------
-    summary : pd.DataFrame
-        DataFrame containing county-level metrics, such as the output of
-        county_capacity_summary().
-    county_name : str
-        Name of the county to report.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with columns [facility_col, 'visits_per_station', 'rank'] sorted
-        by 'visits_per_station' descending.
-    """
-
-    if facility_col not in df.columns or visits_col not in df.columns:
-        missing = [c for c in (facility_col, visits_col) if c not in df.columns]
-        raise ValueError(f"Missing required columns: {missing}")
-
-    if agg not in ("median", "mean"):
-        raise ValueError("agg must be 'median' or 'mean'")
-
-    working = df[[facility_col, visits_col]].copy()
-    working[visits_col] = pd.to_numeric(working[visits_col], errors="coerce")
-
-    # Aggregate per facility
-    if agg == "median":
-        grouped = working.groupby(facility_col, dropna=False)[visits_col].median()
-    else:
-        grouped = working.groupby(facility_col, dropna=False)[visits_col].mean()
-
-    result = grouped.reset_index().rename(columns={visits_col: "visits_per_station"})
-
-    # Sort with NaNs last
-    result = result.sort_values(by="visits_per_station", ascending=False, na_position="last").reset_index(drop=True)
-
-    # Add rank (1-based). Ties receive the same rank using dense ranking
-    result["rank"] = result["visits_per_station"].rank(method="dense", ascending=False).astype(int)
-
-    if top_n is not None:
-        result = result.head(top_n).reset_index(drop=True)
-
-    return result
-
-
-def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFrame:
->>>>>>> main
     """
     Return a one-row county report from a county summary DataFrame.
 
@@ -285,7 +245,6 @@ def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFr
     ValueError
         If required columns are missing or the county is not found.
     """
-<<<<<<< juliette
     required_cols = [county_col, visits_col, stations_col, beds_col, visits_per_station_col]
     missing = [col for col in required_cols if col not in summary.columns]
     if missing:
@@ -293,22 +252,6 @@ def generate_county_report(summary: pd.DataFrame, county_name: str) -> pd.DataFr
 
     report = summary[summary[county_col] == county_name].copy()
 
-=======
-    required_cols = [
-        "county_name",
-        "total_visits",
-        "total_stations",
-        "total_beds",
-        "visits_per_station",
-    ]
-    # Ensure the summary has all required metrics before filtering
-    missing = [col for col in required_cols if col not in summary.columns]
-    if missing:
-        raise ValueError(f"summary is missing required columns: {missing}")
-    # Filter dataset to the requested county
-    report = summary[summary["county_name"] == county_name].copy()
-    # Validate that the county exists in the dataset
->>>>>>> main
     if report.empty:
         raise ValueError(f"No county found with name '{county_name}'")
 
@@ -856,7 +799,6 @@ def run_er_analysis(
     - Detect mismatches between demand and capacity
     - Generate simple visualizations
     """
-<<<<<<< juliette
     required_cols = [facility_col, year_col, visits_col, visits_per_station_col]
     missing = [col for col in required_cols if col not in df.columns]
     if missing:
@@ -878,17 +820,6 @@ def run_er_analysis(
         df.groupby(facility_col)["Utilization"]
         .transform(lambda x: x.ffill().pct_change())
     )
-=======
-   
-
-    df = df.sort_values(["oshpd_id", "year"]).copy()
-
-    df["YoY_Visits"] = df.groupby("oshpd_id")["Tot_ED_NmbVsts"].pct_change()
-
-    df["Utilization"] = df["Visits_Per_Station"]
-
-    df["Utilization_change"] = df.groupby("oshpd_id")["Utilization"].pct_change(fill_method=None)
->>>>>>> main
 
     df["Mismatch"] = (
         (df["YoY_Visits"] > 0) & (df["Utilization_change"] <= 0)
@@ -1036,7 +967,6 @@ def plot_urban_rural_map(
     return m
 
 
-<<<<<<< juliette
 def mental_health_shortage_analysis(
     df,
     visits_col: str = "Tot_ED_NmbVsts",
@@ -1066,13 +996,6 @@ def mental_health_shortage_analysis(
 
 
 def summarize_by_ownership(df, column_map: dict[str, str] | None = None):
-=======
-def summarize_by_ownership(df,
-    ownership_type="HospitalOwnership",
-    total_visits="Tot_ED_NmbVsts",
-    stations="EDStations",
-    visits_perstation="Visits_Per_Station"):
->>>>>>> main
     """
     group hospitals by ownership type and compute summary statistics for burden, volume, & capacity insight
     group hospitals by ownership type and compute summary statistics for burden, volume, & capacity insights
@@ -1180,7 +1103,6 @@ def county_facility_counts(
     facility_col: str = None,
     column_map: dict[str, str] | None = None
 ) -> pd.DataFrame:
-<<<<<<< juliette
     cols = _resolve_columns(column_map, ['county_name', 'facility_name'])
     
     if county_col is None:
@@ -1188,9 +1110,6 @@ def county_facility_counts(
     if facility_col is None:
         facility_col = cols['facility_name']
     
-=======
-    # Ensure required columns exist before processing
->>>>>>> main
     required = [county_col, facility_col]
     missing = [col for col in required if col not in df.columns]
     if missing:
