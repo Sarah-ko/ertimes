@@ -80,10 +80,10 @@ def test_rank_counties_by_burden():
 def test_county_capacity_summary(monkeypatch):
     fake_df = pd.DataFrame(
         {
-            "county_name": ["Alameda", "Alameda", "Fresno"],
-            "total_ed_visits": [100, 200, 90],
-            "ed_stations": [10, 20, 0],
-            "licensed_bed_size": ["1-49", "50-99", "100-199"],
+            "CountyName": ["Alameda", "Alameda", "Fresno"],
+            "Tot_ED_NmbVsts": [100, 200, 90],
+            "EDStations": [10, 20, 0],
+            "LICENSED_BED_SIZE": ["1-49", "50-99", "100-199"],
         }
     )
 
@@ -94,16 +94,16 @@ def test_county_capacity_summary(monkeypatch):
 
     result = stats.county_capacity_summary("California")
 
-    alameda = result[result["county_name"] == "Alameda"].iloc[0]
-    fresno = result[result["county_name"] == "Fresno"].iloc[0]
+    alameda = result[result["CountyName"] == "Alameda"].iloc[0]
+    fresno = result[result["CountyName"] == "Fresno"].iloc[0]
 
-    assert alameda["total_visits"] == 300
-    assert alameda["total_stations"] == 30
-    assert alameda["total_beds"] == 25.0 + 74.5
+    assert alameda["tot_ed_visits"] == 300
+    assert alameda["ed_stations"] == 30
+    assert alameda["licensed_bed_size"] == 25.0 + 74.5
     assert alameda["visits_per_station"] == 10
 
-    assert fresno["total_visits"] == 90
-    assert fresno["total_stations"] == 0
+    assert fresno["tot_ed_visits"] == 90
+    assert fresno["ed_stations"] == 0
     assert np.isnan(fresno["visits_per_station"])
 
 
@@ -383,9 +383,9 @@ def test_generate_county_report_basic():
     summary = pd.DataFrame(
         {
             "county_name": ["Autauga", "Baldwin"],
-            "total_visits": [1000, 2000],
-            "total_stations": [10, 20],
-            "total_beds": [75.0, 125.0],
+            "tot_ed_visits": [1000, 2000],
+            "ed_stations": [10, 20],
+            "licensed_bed_size": [75.0, 125.0],
             "visits_per_station": [100.0, 100.0],
         }
     )
@@ -393,15 +393,15 @@ def test_generate_county_report_basic():
 
     assert result.shape == (1, 5)
     assert result.loc[0, "county_name"] == "Autauga"
-    assert result.loc[0, "total_visits"] == 1000
+    assert result.loc[0, "tot_ed_visits"] == 1000
 
 def test_generate_county_report_missing_county():
     summary = pd.DataFrame(
         {
             "county_name": ["Autauga", "Baldwin"],
-            "total_visits": [1000, 2000],
-            "total_stations": [10, 20],
-            "total_beds": [75.0, 125.0],
+            "tot_ed_visits": [1000, 2000],
+            "ed_stations": [10, 20],
+            "licensed_bed_size": [75.0, 125.0],
             "visits_per_station": [100.0, 100.0],
         }
     )
@@ -479,10 +479,10 @@ def test_plot_urban_rural_map_runs(monkeypatch):
     """
 
     fake_df = pd.DataFrame({
-        "latitude": [34.1, 35.2],
-        "longitude": [-118.2, -119.3],
-        "urban_rural_designation": ["Urban", "Rural"],
-        "facility_name": ["Hospital A", "Hospital B"]
+        "LATITUDE": [34.1, 35.2],
+        "LONGITUDE": [-118.2, -119.3],
+        "UrbanRuralDesi": ["Urban", "Rural"],
+        "FacilityName2": ["Hospital A", "Hospital B"]
     })
 
     def fake_download(state):
@@ -696,7 +696,7 @@ def test_multiple_facilities_spikes_summed():
         {'FacilityName2': 'Hospital B', 'year': 2021, 'Visits_Per_Station': 100},
         {'FacilityName2': 'Hospital B', 'year': 2022, 'Visits_Per_Station': 200},
     ])
-    assert spike_frequency_pivot(df).loc['All ED Visits', 'spike_count'] == 2
+    assert spike_frequency_pivot(df, facility_col='FacilityName2', category_col='Category', visits_col='Visits_Per_Station').loc['All ED Visits', 'spike_count'] == 2
 
 def test_smoke_real_data():
     """End-to-end smoke test: no NaN spike counts on live downloaded California data."""
@@ -719,7 +719,7 @@ def test_all_categories_present():
         {'Category': 'Mental Health', 'year': 2021, 'Visits_Per_Station': 100},
         {'Category': 'Mental Health', 'year': 2022, 'Visits_Per_Station': 105},
     ])
-    result = spike_frequency_pivot(df)
+    result = spike_frequency_pivot(df, facility_col='FacilityName2', category_col='Category', visits_col='Visits_Per_Station')
     assert set(result.index) == {'Diabetes', 'Mental Health'}
 
 def test_spike_counted():
@@ -728,7 +728,7 @@ def test_spike_counted():
         {'year': 2021, 'Visits_Per_Station': 100},
         {'year': 2022, 'Visits_Per_Station': 200},
     ])
-    assert spike_frequency_pivot(df, threshold_pct=20.0).loc['All ED Visits', 'spike_count'] == 1
+    assert spike_frequency_pivot(df, threshold_pct=20.0, facility_col='FacilityName2', category_col='Category', visits_col='Visits_Per_Station').loc['All ED Visits', 'spike_count'] == 1
 
 #pytests for summarize_by_ownership function
 from ertimes.stats import summarize_by_ownership 
@@ -832,9 +832,9 @@ def fake_download():
     return pd.DataFrame({
         "oshpd_id": [1, 1, 2, 2],
         "year": [2021, 2022, 2021, 2022],
-        "Tot_ED_NmbVsts": [100, 120, 200, 210],
-        "Visits_Per_Station": [10, 12, 20, 21],
-        "FacilityName2": ["A", "A", "B", "B"]
+        "total_ed_visits": [100, 120, 200, 210],
+        "visits_per_station": [10, 12, 20, 21],
+        "facility_name": ["A", "A", "B", "B"]
     })
 
 
