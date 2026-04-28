@@ -11,9 +11,10 @@ from ertimes import stats
 
 # Use this clean import now that 'pip install -e .' worked!
 from ertimes.io import download_emergency_data 
-from ertimes.stats import _bed_size_to_numeric, find_capacity_volume_mismatch
-from ertimes.stats import generate_county_report
-from ertimes.stats import compute_capacity_pressure_score, spike_frequency_pivot
+from ertimes.stats_analysis import _bed_size_to_numeric, find_capacity_volume_mismatch, compute_capacity_pressure_score, spike_frequency_pivot, mental_health_shortage_analysis, calculate_growth, county_facility_counts
+from ertimes.stats_reports import generate_county_report, per_category_burden_report, summarize_by_ownership, find_duplicates
+from ertimes.stats_ranking import rank_counties_by_burden, rank_hospitals_by_visits_per_station
+from ertimes.stats_visualization import plot_facility_trend, plot_urban_rural_map
 
 def test_download_california_data(monkeypatch):
     """
@@ -34,7 +35,7 @@ def test_download_california_data(monkeypatch):
             return mock_df
         raise ValueError(f"{state} is not supported")
     
-    monkeypatch.setattr(stats, "download_emergency_data", fake_download)
+    monkeypatch.setattr("ertimes.stats_analysis.download_emergency_data", fake_download)
     
     # 1. Run the function
     df = download_emergency_data("california")
@@ -90,7 +91,7 @@ def test_county_capacity_summary(monkeypatch):
     def fake_download(state):
         return fake_df
 
-    monkeypatch.setattr(stats, "download_emergency_data", fake_download)
+    monkeypatch.setattr("ertimes.stats_analysis.download_emergency_data", fake_download)
 
     result = stats.county_capacity_summary("California")
 
@@ -298,7 +299,7 @@ def test_per_category_burden_missing_column():
         "FacilityName2": ["A"],
         "Tot_ED_NmbVsts": [10]  # missing 'Category' and 'Visits_Per_Station'
     })
-    with pytest.raises(KeyError):
+    with pytest.raises(ValueError, match="Missing required columns"):
         stats.per_category_burden_report(df)
 
 
@@ -340,7 +341,7 @@ def test_rank_hospitals_by_visits_per_station_missing_columns():
 
 #pytest for health_conditions_bar.py 
 from io import StringIO
-from ertimes.health_conditions_bar import plot_category_visits
+from ertimes.stats_visualization import plot_category_visits
 
 def test_plot_category_visits(monkeypatch, capsys):
     """
@@ -411,7 +412,7 @@ def test_generate_county_report_missing_county():
 
 
 #Median_Income Tests
-from ertimes.Median_income import load_california_income_data, get_income_by_zip, get_income_statistics
+from ertimes.stats_analysis import load_california_income_data, get_income_by_zip, get_income_statistics
 
 
 def test_load_california_income_data():
@@ -488,7 +489,7 @@ def test_plot_urban_rural_map_runs(monkeypatch):
     def fake_download(state):
         return fake_df
 
-    monkeypatch.setattr(stats, "download_emergency_data", fake_download)
+    monkeypatch.setattr("ertimes.stats_analysis.download_emergency_data", fake_download)
 
     result = stats.plot_urban_rural_map("California")
 
@@ -645,8 +646,10 @@ def test_shortage_increases_score():
     df = make_df([
         {'facility_name': 'Shortage',
          'primary_care_shortage_area': 'Yes',
-         'mental_health_shortage_area': 'Yes'},
-        {'facility_name': 'None'},
+         'mental_health_shortage_area': 'Yes',
+         'visits_per_station': 150.0},
+        {'facility_name': 'None',
+         'visits_per_station': 100.0},
     ])
     s = score(df)
     assert s['Shortage'] > s['None']
@@ -746,7 +749,13 @@ def test_basic_summary():
         "Visits_Per_Station": [10, 10, 10, 10]
     })
     #run function
-    result = summarize_by_ownership(df)
+    column_map = {
+        "hospital_ownership": "HospitalOwnership",
+        "tot_ed_visits": "Tot_ED_NmbVsts",
+        "ed_stations": "EDStations",
+        "visits_per_station": "Visits_Per_Station"
+    }
+    result = summarize_by_ownership(df, column_map=column_map)
     #create expected result via manual computation
     expected = pd.DataFrame({
         "HospitalOwnership": ["A", "B"],
@@ -775,7 +784,12 @@ def test_sort_order():
         "EDStations": [10, 10],
         "Visits_Per_Station": [5, 20]  
     })
-    result = summarize_by_ownership(df)
+    result = summarize_by_ownership(df, column_map={
+        "hospital_ownership": "HospitalOwnership",
+        "tot_ed_visits": "Tot_ED_NmbVsts",
+        "ed_stations": "EDStations",
+        "visits_per_station": "Visits_Per_Station"
+    })
     #check that first row is B (the highest efficiency)
     assert result.iloc[0]["HospitalOwnership"] == "B"
 
@@ -800,7 +814,12 @@ def test_non_numeric_coercion():
         "EDStations": ["10", "20"],
         "Visits_Per_Station": ["5", "5"]
     })
-    result = summarize_by_ownership(df)
+    result = summarize_by_ownership(df, column_map={
+        "hospital_ownership": "HospitalOwnership",
+        "tot_ed_visits": "Tot_ED_NmbVsts",
+        "ed_stations": "EDStations",
+        "visits_per_station": "Visits_Per_Station"
+    })
     # only 100 should be used in computation, only numeric value 
     assert result.loc[0, "Tot_ED_NmbVsts_mean"] == 100.0
 
@@ -813,8 +832,14 @@ def test_missing_ownership():
         "EDStations": [10, 20],
         "Visits_Per_Station": [10, 10]
     })
-    # only A should remain, the only valid ownership group 
-    result = summarize_by_ownership(df)
+    # only A should remain, the only valid ownership group
+    column_map = {
+        "hospital_ownership": "HospitalOwnership",
+        "tot_ed_visits": "Tot_ED_NmbVsts",
+        "ed_stations": "EDStations",
+        "visits_per_station": "Visits_Per_Station"
+    }
+    result = summarize_by_ownership(df, column_map=column_map)
 
     assert len(result) == 1
     assert result.iloc[0]["HospitalOwnership"] == "A"
@@ -840,7 +865,7 @@ def fake_download():
 
 def test_run_er_analysis(monkeypatch):
  
-    monkeypatch.setattr(stats, "download_emergency_data", fake_download)
+    monkeypatch.setattr("ertimes.stats_analysis.download_emergency_data", fake_download)
 
     df = fake_download()
     result = stats.run_er_analysis(df)
