@@ -987,3 +987,104 @@ def test_calculate_growth_percent_multiple_groups():
     # Group 2 expectations
     assert np.isnan(result.loc[(result["oshpd_id"] == 2) & (result["year"] == 2020), "growth"].iloc[0])
     assert result.loc[(result["oshpd_id"] == 2) & (result["year"] == 2021), "growth"].iloc[0] == -50
+
+def test_rank_counties_by_burden_bad_input_type():
+    """rank_counties_by_burden should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="summary must be a pandas DataFrame"):
+        rank_counties_by_burden([1, 2, 3])
+
+
+def test_rank_counties_by_burden_custom_visits_column():
+    """rank_counties_by_burden should support a custom burden column name."""
+    summary = pd.DataFrame({
+        "county": ["A", "B", "C"],
+        "burden": [5, 15, 10],
+    })
+
+    result = rank_counties_by_burden(summary, visits_col="burden")
+
+    assert list(result["county"]) == ["B", "C", "A"]
+
+
+def test_rank_counties_by_burden_resets_index():
+    """rank_counties_by_burden should reset the index after sorting."""
+    summary = pd.DataFrame({
+        "county": ["A", "B", "C"],
+        "visits_per_station": [5, 15, 10],
+    }, index=[10, 20, 30])
+
+    result = rank_counties_by_burden(summary)
+
+    assert list(result.index) == [0, 1, 2]
+
+
+def test_rank_hospitals_by_visits_per_station_bad_input_type():
+    """rank_hospitals_by_visits_per_station should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+        rank_hospitals_by_visits_per_station([1, 2, 3])
+
+
+def test_rank_hospitals_by_visits_per_station_invalid_agg():
+    """rank_hospitals_by_visits_per_station should reject unsupported aggregation methods."""
+    df = pd.DataFrame({
+        "facility_name": ["A", "B"],
+        "visits_per_station": [10, 20],
+    })
+
+    with pytest.raises(ValueError, match="agg must be 'mean' or 'median'"):
+        rank_hospitals_by_visits_per_station(df, agg="sum")
+
+
+def test_rank_hospitals_by_visits_per_station_negative_top_n():
+    """rank_hospitals_by_visits_per_station should reject negative top_n values."""
+    df = pd.DataFrame({
+        "facility_name": ["A", "B"],
+        "visits_per_station": [10, 20],
+    })
+
+    with pytest.raises(ValueError, match="top_n must be nonnegative"):
+        rank_hospitals_by_visits_per_station(df, top_n=-1)
+
+
+def test_rank_hospitals_by_visits_per_station_numeric_coercion():
+    """String numeric values should be coerced before ranking."""
+    df = pd.DataFrame({
+        "facility_name": ["A", "B", "C"],
+        "visits_per_station": ["10", "30", "20"],
+    })
+
+    result = rank_hospitals_by_visits_per_station(df)
+
+    assert list(result["facility_name"]) == ["B", "C", "A"]
+    assert pd.api.types.is_numeric_dtype(result["visits_per_station"])
+
+
+def test_rank_hospitals_by_visits_per_station_custom_columns():
+    """Function should support custom facility and visits column names."""
+    df = pd.DataFrame({
+        "Hospital": ["A", "A", "B"],
+        "Burden": [10, 30, 50],
+    })
+
+    result = rank_hospitals_by_visits_per_station(
+        df,
+        facility_col="Hospital",
+        visits_col="Burden",
+        agg="mean",
+    )
+
+    assert list(result["Hospital"]) == ["B", "A"]
+    assert result.loc[0, "Burden"] == 50
+
+
+def test_rank_hospitals_by_visits_per_station_top_n_zero():
+    """top_n=0 should return an empty DataFrame with the expected columns."""
+    df = pd.DataFrame({
+        "facility_name": ["A", "B"],
+        "visits_per_station": [10, 20],
+    })
+
+    result = rank_hospitals_by_visits_per_station(df, top_n=0)
+
+    assert result.empty
+    assert list(result.columns) == ["facility_name", "visits_per_station"]
