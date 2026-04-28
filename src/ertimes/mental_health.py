@@ -13,6 +13,11 @@ This function highlights facilities that experience both an above-average burden
 """
 
 def mental_health_shortage_analysis(df):
+    """Analyzes the emergency department data to identify facilities that are 
+    at high risk due to a combination of high burden and mental health 
+    resource shortages.
+    The function calculates a burden score for each facility, 
+    determines the average burden, and flags facilities"""
 
     
     # Creates a copy to prevent modifying original dataframe
@@ -37,3 +42,69 @@ def mental_health_shortage_analysis(df):
 
 result = mental_health_shortage_analysis(df)
 print(result)
+
+"""
+Identifies high-risk facilities based on emergency department (ED) burden 
+and mental health resource shortages.
+
+A facility is classified as "high risk" if:
+1. It is located in a mental health shortage area, AND
+2. Its burden score (visits per station) exceeds the average burden 
+   within its group (which in this instance is set to year).
+
+Parameters:
+    df (pd.DataFrame): Input dataset
+    visit_col (str): Column name for total ED visits
+    station_col (str): Column name for number of ED stations
+    shortage_col (str): Column indicating shortage status
+    shortage_value (str): Value indicating a shortage (e.g., "Yes")
+    group_col (str): Column used to compute group averages (e.g., year)
+
+Returns:
+    pd.DataFrame: Subset of the original DataFrame containing only 
+    high-risk facilities, with additional columns:
+        - burden_score
+        - avg_burden
+        - high_risk (boolean)
+"""
+
+def mental_health_shortage_analysis(
+    df,
+    visit_col="tot_ed_nmb_vsts",
+    station_col="ed_stations",
+    shortage_col="mental_health_shortage_area",
+    shortage_value="Yes",
+    group_col="year"
+):
+
+    # CALCULATION PREP (1): Convert key columns to numeric
+    # Ensures calculations work properly and prevents errors
+    df[visit_col] = pd.to_numeric(df[visit_col], errors="raise")
+    df[station_col] = pd.to_numeric(df[station_col], errors="raise")
+
+    # CALCULATION PREP (2): Prevent division by zero
+    # Replace 0 stations with NaN
+    df[station_col] = df[station_col].replace(0, np.nan)
+
+    # TYPE CHECKING: Ensure columns are numeric
+    if not np.issubdtype(df[visit_col].dtype, np.number):
+        raise TypeError(f"{visit_col} must be numeric")
+    if not np.issubdtype(df[station_col].dtype, np.number):
+        raise TypeError(f"{station_col} must be numeric")
+
+    # BURDEN SCORE: ED visits per station
+    df["burden_score"] = df[visit_col] / df[station_col]
+
+    # GROUP BENCHMARK: Average burden within group (e.g., year)
+    df["avg_burden"] = df.groupby(group_col)["burden_score"].transform("mean")
+
+    # HIGH-RISK FLAG:
+    # 1. In mental health shortage area
+    # 2. Burden above group average
+    df["high_risk"] = (
+        (df[shortage_col] == shortage_value) &
+        (df["burden_score"] > df["avg_burden"])
+    )
+    
+    # Returns the facilities that are high risk
+    return df[df['high_risk'] == True]

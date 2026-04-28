@@ -25,12 +25,13 @@ def load_california_income_data(filepath: Optional[str] = None) -> pd.DataFrame:
     """
     if filepath:
         try:
-            df = pd.read_csv(filepath)
+            df = pd.read_csv(filepath) # Load user-provided dataset
             return df
         except FileNotFoundError:
             warnings.warn(f"File {filepath} not found. Returning sample data.")
             return _get_sample_california_income_data()
     else:
+        # Use built-in sample data when no file is provided
         return _get_sample_california_income_data()
 
 
@@ -92,11 +93,13 @@ def get_income_by_zip(df: pd.DataFrame, zip_code: str) -> Optional[Dict]:
     dict or None
         Dictionary with zip code details if found, None otherwise
     """
-    result = df[df['zip_code'] == zip_code]
+    result = df[df['zip_code'] == zip_code] # Filter for matching zip code
     if result.empty:
-        return None
+        return None # Return None if zip code not found
     
-    row = result.iloc[0]
+    row = result.iloc[0] #Extract the first matching row
+    
+    #Return relevant fields as a dictionary
     return {
         'zip_code': row['zip_code'],
         'median_income': row['median_income'],
@@ -121,6 +124,7 @@ def get_income_by_county(df: pd.DataFrame, county: str) -> pd.DataFrame:
     pd.DataFrame
         Filtered DataFrame for the specified county
     """
+    # Case-insensitive match on county name
     return df[df['county'].str.lower() == county.lower()].copy()
 
 
@@ -142,6 +146,7 @@ def get_income_statistics(df: pd.DataFrame,
         Statistics table with mean, median, min, max income
     """
     if group_by:
+        # Group by specified column and compute summary statistics
         stats = df.groupby(group_by)['median_income'].agg([
             ('mean_income', 'mean'),
             ('median_income', 'median'),
@@ -150,6 +155,7 @@ def get_income_statistics(df: pd.DataFrame,
             ('count', 'count')
         ]).round(2)
     else:
+        # Compute overall statistics without grouping
         stats = pd.DataFrame({
             'mean_income': [df['median_income'].mean()],
             'median_income': [df['median_income'].median()],
@@ -181,11 +187,13 @@ def filter_by_income_range(df: pd.DataFrame,
     pd.DataFrame
         Filtered DataFrame with zip codes in the income range
     """
+    #Filter rows where income falls within the specified range (inclusive)
     return df[(df['median_income'] >= min_income) & 
               (df['median_income'] <= max_income)].copy()
 
 
 def display_income_summary(df: pd.DataFrame) -> None:
+    # Print formatted summary statistics for quick inspection
     """
     Print a formatted summary of income data.
     
@@ -204,6 +212,7 @@ def display_income_summary(df: pd.DataFrame) -> None:
     print("\n" + "-"*70)
     print("BY COUNTY:")
     print("-"*70)
+     # Reuse stats function to compute county-level summaries
     county_stats = get_income_statistics(df, group_by='county')
     print(county_stats.to_string())
     print("\n" + "="*70 + "\n")

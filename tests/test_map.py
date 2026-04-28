@@ -2,6 +2,7 @@ from ertimes.map_viz import create_ed_map
 import pandas as pd
 
 def test_create_ed_map_filters_year():
+    """Tests that the create_ed_map function correctly filters data by year."""
     df = pd.DataFrame({
         "year": [2022, 2022, 2023],
         "latitude": [1, 2, 3],
