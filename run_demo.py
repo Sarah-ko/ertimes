@@ -1,8 +1,10 @@
 from pathlib import Path
 
-from ertimes.health_conditions_bar import plot_category_visits
+from ertimes.stats_visualization import plot_category_visits, plot_hospital_load_distribution, plot_urban_rural_map
 from ertimes.io import download_emergency_data, load_emergency_data
-from ertimes.stats import find_capacity_volume_mismatch, plot_hospital_load_distribution, plot_urban_rural_map
+from ertimes.stats_analysis import find_capacity_volume_mismatch, county_capacity_summary, rank_counties_by_burden
+from ertimes.stats_ranking import rank_hospitals_by_visits_per_station
+from ertimes.stats_reports import summarize_by_ownership
 import pandas as pd
 
 
@@ -40,4 +42,42 @@ def demo_plot_category_visits_downloaded() -> None:
     plot_category_visits(df, save=True)
 
 
+def demo_county_capacity_summary():
+    """Demo county capacity summary."""
+    print("Generating county capacity summary...")
+    summary = county_capacity_summary("california")
+    print(summary.head())
+    return summary
+
+def demo_rank_counties():
+    """Demo ranking counties by burden."""
+    print("Ranking counties by burden...")
+    summary = demo_county_capacity_summary()
+    ranked = rank_counties_by_burden(summary)
+    print(ranked.head())
+    return ranked
+
+def demo_rank_hospitals():
+    """Demo ranking hospitals by visits per station."""
+    print("Ranking hospitals by visits per station...")
+    df = download_emergency_data("california")
+    ranked = rank_hospitals_by_visits_per_station(df, top_n=5)
+    print(ranked)
+    return ranked
+
+def demo_summarize_by_ownership():
+    """Demo summarizing by ownership."""
+    print("Summarizing by ownership...")
+    df = download_emergency_data("california")
+    summary = summarize_by_ownership(df)
+    print(summary)
+    return summary
+
 demo_plot_category_visits_downloaded()
+
+# Run demos
+if __name__ == "__main__":
+    demo_county_capacity_summary()
+    demo_rank_counties()
+    demo_rank_hospitals()
+    demo_summarize_by_ownership()

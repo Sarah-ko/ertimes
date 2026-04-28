@@ -1,4 +1,4 @@
-from ertimes.map_viz import create_ed_map
+from ertimes.stats_visualization import create_ed_map
 import pandas as pd
 
 def test_create_ed_map_filters_year():
