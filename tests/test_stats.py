@@ -11,8 +11,8 @@ from ertimes import stats
 
 # Use this clean import now that 'pip install -e .' worked!
 from ertimes.io import download_emergency_data 
-from ertimes.stats_analysis import _bed_size_to_numeric, find_capacity_volume_mismatch, compute_capacity_pressure_score, spike_frequency_pivot, mental_health_shortage_analysis, calculate_growth, county_facility_counts
-from ertimes.stats_reports import generate_county_report, per_category_burden_report, summarize_by_ownership, find_duplicates
+from ertimes.stats_analysis import find_capacity_volume_mismatch, compute_capacity_pressure_score, spike_frequency_pivot, mental_health_shortage_analysis 
+from ertimes.stats_reports import generate_county_report, summarize_by_ownership
 from ertimes.stats_ranking import rank_counties_by_burden, rank_hospitals_by_visits_per_station
 from ertimes.stats_visualization import plot_facility_trend, plot_urban_rural_map
 
@@ -412,8 +412,8 @@ def test_generate_county_report_missing_county():
 
 
 #Median_Income Tests
-from ertimes.stats_analysis import load_california_income_data, get_income_by_zip, get_income_statistics
-
+from ertimes.stats_analysis import load_california_income_data, get_income_by_zip
+from ertimes.demographics import get_income_statistics
 
 def test_load_california_income_data():
     # Test loading data from a valid file
@@ -987,3 +987,283 @@ def test_calculate_growth_percent_multiple_groups():
     # Group 2 expectations
     assert np.isnan(result.loc[(result["oshpd_id"] == 2) & (result["year"] == 2020), "growth"].iloc[0])
     assert result.loc[(result["oshpd_id"] == 2) & (result["year"] == 2021), "growth"].iloc[0] == -50
+
+def test_rank_counties_by_burden_bad_input_type():
+    """rank_counties_by_burden should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="summary must be a pandas DataFrame"):
+        rank_counties_by_burden([1, 2, 3])
+
+
+def test_rank_counties_by_burden_custom_visits_column():
+    """rank_counties_by_burden should support a custom burden column name."""
+    summary = pd.DataFrame({
+        "county": ["A", "B", "C"],
+        "burden": [5, 15, 10],
+    })
+
+    result = rank_counties_by_burden(summary, visits_col="burden")
+
+    assert list(result["county"]) == ["B", "C", "A"]
+
+
+def test_rank_counties_by_burden_resets_index():
+    """rank_counties_by_burden should reset the index after sorting."""
+    summary = pd.DataFrame({
+        "county": ["A", "B", "C"],
+        "visits_per_station": [5, 15, 10],
+    }, index=[10, 20, 30])
+
+    result = rank_counties_by_burden(summary)
+
+    assert list(result.index) == [0, 1, 2]
+
+
+def test_rank_hospitals_by_visits_per_station_bad_input_type():
+    """rank_hospitals_by_visits_per_station should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+        rank_hospitals_by_visits_per_station([1, 2, 3])
+
+
+def test_rank_hospitals_by_visits_per_station_invalid_agg():
+    """rank_hospitals_by_visits_per_station should reject unsupported aggregation methods."""
+    df = pd.DataFrame({
+        "facility_name": ["A", "B"],
+        "visits_per_station": [10, 20],
+    })
+
+    with pytest.raises(ValueError, match="agg must be 'mean' or 'median'"):
+        rank_hospitals_by_visits_per_station(df, agg="sum")
+
+
+def test_rank_hospitals_by_visits_per_station_negative_top_n():
+    """rank_hospitals_by_visits_per_station should reject negative top_n values."""
+    df = pd.DataFrame({
+        "facility_name": ["A", "B"],
+        "visits_per_station": [10, 20],
+    })
+
+    with pytest.raises(ValueError, match="top_n must be nonnegative"):
+        rank_hospitals_by_visits_per_station(df, top_n=-1)
+
+
+def test_rank_hospitals_by_visits_per_station_numeric_coercion():
+    """String numeric values should be coerced before ranking."""
+    df = pd.DataFrame({
+        "facility_name": ["A", "B", "C"],
+        "visits_per_station": ["10", "30", "20"],
+    })
+
+    result = rank_hospitals_by_visits_per_station(df)
+
+    assert list(result["facility_name"]) == ["B", "C", "A"]
+    assert pd.api.types.is_numeric_dtype(result["visits_per_station"])
+
+
+def test_rank_hospitals_by_visits_per_station_custom_columns():
+    """Function should support custom facility and visits column names."""
+    df = pd.DataFrame({
+        "Hospital": ["A", "A", "B"],
+        "Burden": [10, 30, 50],
+    })
+
+    result = rank_hospitals_by_visits_per_station(
+        df,
+        facility_col="Hospital",
+        visits_col="Burden",
+        agg="mean",
+    )
+
+    assert list(result["Hospital"]) == ["B", "A"]
+    assert result.loc[0, "Burden"] == 50
+
+
+def test_rank_hospitals_by_visits_per_station_top_n_zero():
+    """top_n=0 should return an empty DataFrame with the expected columns."""
+    df = pd.DataFrame({
+        "facility_name": ["A", "B"],
+        "visits_per_station": [10, 20],
+    })
+
+    result = rank_hospitals_by_visits_per_station(df, top_n=0)
+
+    assert result.empty
+    assert list(result.columns) == ["facility_name", "visits_per_station"]
+
+from ertimes.stats_visualization import (
+    plot_hospital_load_distribution,
+    year_range,
+    create_ed_map,
+    plot_category_visits_by_facility,
+)
+
+
+def test_plot_hospital_load_distribution_returns_figure():
+    """plot_hospital_load_distribution should return a matplotlib Figure."""
+    df = pd.DataFrame({
+        "Tot_ED_NmbVsts": [100, 200, 300],
+        "EDStations": [10, 20, 30],
+    })
+
+    fig = plot_hospital_load_distribution(df)
+
+    assert fig is not None
+    assert hasattr(fig, "savefig")
+
+
+def test_plot_hospital_load_distribution_missing_columns():
+    """plot_hospital_load_distribution should raise ValueError when required columns are missing."""
+    df = pd.DataFrame({
+        "Tot_ED_NmbVsts": [100, 200],
+    })
+
+    with pytest.raises(ValueError, match="Missing required columns"):
+        plot_hospital_load_distribution(df)
+
+
+def test_plot_hospital_load_distribution_bad_input_type():
+    """plot_hospital_load_distribution should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+        plot_hospital_load_distribution([1, 2, 3])
+
+
+def test_plot_hospital_load_distribution_save_path(tmp_path):
+    """plot_hospital_load_distribution should save a figure when save_path is provided."""
+    df = pd.DataFrame({
+        "Tot_ED_NmbVsts": [100, 200, 300],
+        "EDStations": [10, 20, 30],
+    })
+    output_path = tmp_path / "load_distribution.png"
+
+    fig = plot_hospital_load_distribution(df, save_path=str(output_path))
+
+    assert fig is not None
+    assert output_path.exists()
+
+
+def test_year_range_basic(tmp_path):
+    """year_range should return the minimum and maximum valid year from a CSV."""
+    csv_path = tmp_path / "years.csv"
+    pd.DataFrame({
+        "year": [2020, 2021, 2023],
+        "value": [1, 2, 3],
+    }).to_csv(csv_path, index=False)
+
+    assert year_range(str(csv_path)) == (2020, 2023)
+
+
+def test_year_range_missing_year_column(tmp_path):
+    """year_range should raise ValueError when the CSV has no year column."""
+    csv_path = tmp_path / "no_year.csv"
+    pd.DataFrame({
+        "value": [1, 2, 3],
+    }).to_csv(csv_path, index=False)
+
+    with pytest.raises(ValueError, match="year"):
+        year_range(str(csv_path))
+
+
+def test_year_range_no_valid_year_values(tmp_path):
+    """year_range should raise ValueError when year column has no valid numeric values."""
+    csv_path = tmp_path / "bad_years.csv"
+    pd.DataFrame({
+        "year": ["bad", None, "unknown"],
+    }).to_csv(csv_path, index=False)
+
+    with pytest.raises(ValueError, match="valid year"):
+        year_range(str(csv_path))
+
+
+def test_plot_facility_trend_bad_input_type():
+    """plot_facility_trend should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+        plot_facility_trend([1, 2, 3], "A")
+
+
+def test_plot_urban_rural_map_missing_coordinate_rows(monkeypatch):
+    """plot_urban_rural_map should raise ValueError when no valid coordinates remain."""
+    fake_df = pd.DataFrame({
+        "LATITUDE": [None, None],
+        "LONGITUDE": [None, None],
+        "UrbanRuralDesi": ["Urban", "Rural"],
+        "FacilityName2": ["A", "B"],
+    })
+
+    def fake_download(state):
+        return fake_df
+
+    monkeypatch.setattr("ertimes.stats_analysis.download_emergency_data", fake_download)
+
+    with pytest.raises(ValueError, match="No valid latitude/longitude"):
+        plot_urban_rural_map("California")
+
+
+def test_create_ed_map_filters_year():
+    """create_ed_map should return a Plotly figure for the requested year."""
+    df = pd.DataFrame({
+        "year": [2020, 2021],
+        "latitude": [34.1, 35.2],
+        "longitude": [-118.2, -119.3],
+        "total_ed_visits": [100, 200],
+        "primary_care_shortage": ["Yes", "No"],
+        "mental_health_shortage": ["No", "Yes"],
+        "county": ["A", "B"],
+        "ed_name": ["Hospital A", "Hospital B"],
+    })
+
+    fig = create_ed_map(df, 2021)
+
+    assert fig is not None
+    assert hasattr(fig, "to_dict")
+
+
+def test_create_ed_map_missing_columns():
+    """create_ed_map should raise ValueError when required columns are missing."""
+    df = pd.DataFrame({
+        "year": [2021],
+        "latitude": [34.1],
+    })
+
+    with pytest.raises(ValueError, match="Missing required columns"):
+        create_ed_map(df, 2021)
+
+
+def test_create_ed_map_bad_input_type():
+    """create_ed_map should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+        create_ed_map([1, 2, 3], 2021)
+
+
+def test_plot_category_visits_by_facility_returns_figure(monkeypatch, capsys):
+    """plot_category_visits_by_facility should return a Figure and print the category summary."""
+    monkeypatch.setattr(plt, "show", lambda: None)
+
+    df = pd.DataFrame({
+        "facility_name": ["A", "A", "B"],
+        "category": ["Stroke", "All ED Visits", "Stroke"],
+        "ed_burden": [20, 999, 40],
+    })
+
+    fig = plot_category_visits_by_facility(df, "A")
+    captured = capsys.readouterr()
+
+    assert fig is not None
+    assert hasattr(fig, "savefig")
+    assert "Stroke" in captured.out
+    assert "All ED Visits" not in captured.out
+
+
+def test_plot_category_visits_by_facility_missing_columns():
+    """plot_category_visits_by_facility should raise ValueError if required columns are missing."""
+    df = pd.DataFrame({
+        "facility_name": ["A"],
+        "category": ["Stroke"],
+    })
+
+    with pytest.raises(ValueError, match="Missing required columns"):
+        plot_category_visits_by_facility(df, "A")
+
+
+def test_plot_category_visits_bad_input_type():
+    """plot_category_visits should raise TypeError for non-DataFrame input."""
+    with pytest.raises(TypeError, match="df must be a pandas DataFrame"):
+        plot_category_visits([1, 2, 3])

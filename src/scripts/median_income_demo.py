@@ -7,17 +7,14 @@ to analyze California household income by zip code.
 import sys
 import importlib.util
 
-# Load the module directly without going through __init__.py
-spec = importlib.util.spec_from_file_location("Median_income", "/Users/maggie29755/ertimes/src/ertimes/Median_income.py")
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-
-load_california_income_data = module.load_california_income_data
-get_income_by_zip = module.get_income_by_zip
-get_income_by_county = module.get_income_by_county
-get_income_statistics = module.get_income_statistics
-filter_by_income_range = module.filter_by_income_range
-display_income_summary = module.display_income_summary
+from ertimes.stats_analysis import (
+    load_california_income_data,
+    get_income_by_zip,
+    get_income_by_county,
+    get_income_statistics,
+    filter_by_income_range,
+    display_income_summary,
+)
 
 
 def main():
